@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     THREADS_API_URL: str = "https://api.threads.net"
     THREADS_REDIRECT_URI: str
     
+    # Telegram
+    TELEGRAM_BOTNAME: str
+    
     # OpenAI
     OPENAI_API_KEY: str
     

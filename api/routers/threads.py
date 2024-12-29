@@ -1,7 +1,7 @@
 # Threads Controller
 from api.utils.logger import logger
 from fastapi.routing import APIRoute
-from api.config import get_settings
+from api.utils.config import get_settings
 from fastapi import APIRouter, Depends, Request
 from pythreads.configuration import Configuration
 from pythreads.api import API
@@ -51,19 +51,46 @@ class ThreadsController:
         except Exception as e:
             logger.error(f"Error getting user account: {str(e)}")
             return {"status": "error", "message": str(e)}
-    
+        
+    async def post_thread(self, request: Request):
+        try:
+            params = dict(request.query_params)
+            user_id = params.get('user_id')
+            message = params.get('message')
+            image_url = params.get('image_url')
+            
+            credentials = await self.db.get_user_threads_credentials(user_id)
+            if not credentials:
+                return {"status": "error", "message": "User not connected to Threads"}
+            
+            threads_credentials = Credentials.from_json(credentials)
+            logger.info(f"Credentials: {threads_credentials}")
+            
+            async with API(credentials=threads_credentials) as api:
+                container_id = await api.create_container(message)
+                result_id = await api.publish_container(container_id)
+                return {"status": "success", "message": "Thread posted successfully.", "result_id": result_id}
+            
+        except Exception as e:
+            logger.error(f"Error posting thread: {str(e)}")
+            return {"status": "error", "message": str(e)}
 
 threads_controller = ThreadsController()
 
 router = APIRouter()
 
-
 routes = [
     APIRoute(
-        path="/get_user_account",
+        path="/user_account",
         endpoint=threads_controller.get_user_account,
         methods=["GET"],
         name="get_user_account"
+    ),
+    APIRoute(
+        path="/post",
+        endpoint=threads_controller.post_thread,
+        methods=["POST"],
+        name="post_thread"
     )
 ]
 

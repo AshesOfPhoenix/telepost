@@ -29,6 +29,18 @@ The project consists of two main components:
 ## Setup
 
 1. Clone the repository
+
+2. Generate a Telegram bot token with @BotFather. Follow the instructions at https://core.telegram.org/api/bots
+
+3. Generate certificates. Used for Threads authentication. Follow the instructions at https://developers.threads.net/docs/auth/overview
+
+    3.1. Create a subdirectory for the certificates called `certs`
+
+    3.2. Create a key and a certificate
+    - openssl genrsa -out project_key.pem 2048
+    - openssl req -new -key project_key.pem -out project_csr.pem
+    - openssl x509 -req -days 365 -in project_csr.pem -signkey project_key.pem -out project_cert.pem
+
 2. Create a `.env` file with the variables from the .env.example file
 
 3. Run with Docker Compose:

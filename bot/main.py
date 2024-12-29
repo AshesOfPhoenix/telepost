@@ -1,14 +1,15 @@
 import httpx
-from bot.config import get_settings
+from bot.utils.config import get_settings
 from bot.utils.logger import logger
-from bot.prompts import HELP_MESSAGE, START_MESSAGE, CONNECT_MESSAGE, RESTART_MESSAGE
-from telegram import Update
+from bot.utils.prompts import HELP_MESSAGE, START_MESSAGE, CONNECT_MESSAGE, RESTART_MESSAGE
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LoginUrl
 from telegram.ext import (
     ContextTypes,
     CommandHandler,
     MessageHandler,
     ApplicationBuilder,
-    filters,
+    CallbackQueryHandler,
+    filters, 
 )
 
 settings = get_settings()
@@ -58,6 +59,9 @@ class TelegramBot:
             await update.message.reply_text("An error occurred during the health check. Please try again later.")
         
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /start command and deep links"""
+        
+        
         await update.message.reply_text(START_MESSAGE)
 
 
@@ -68,7 +72,7 @@ class TelegramBot:
         try:
             user_id = update.message.from_user.id
             response = await self.http_client.get(
-                f"{settings.API_BASE_URL}/threads/get_user_account",
+                f"{settings.API_BASE_URL}/threads/user_account",
                 params={"user_id": user_id}
             )
             account_data = response.json()
@@ -79,11 +83,8 @@ class TelegramBot:
                 
             # Format the account data into a readable message
             logger.info(f"Account data: {account_data}")
-            message = (
-                f"*Threads Account Info*\n"
-                f"Username: @{account_data.get('username')}\n"
-                f"Bio:\n{account_data.get('biography', 'No bio')}"
-            )
+            
+            message = f"**Threads Account Info**\nUsername: @{account_data.get('username')}\nBio:\n{account_data.get('biography', 'No bio')}"
             
             await update.message.reply_photo(
                 photo=account_data.get("profile_picture_url"),
@@ -96,11 +97,149 @@ class TelegramBot:
             await update.message.reply_text("Sorry, there was an error getting your account information.")
 
     async def connect_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Sends a message with inline buttons for platform connection."""
         user_id = update.message.from_user.id
-        auth_url = await self.http_client.get(settings.API_BASE_URL + "/auth/threads/connect", params={"user_id": user_id})
-        logger.info(f"Auth URL: {auth_url.json()}")
-        await update.message.reply_text(CONNECT_MESSAGE.format(auth_url=auth_url.json().get("url")))
+        
+        is_threads_connected = await self.http_client.get(settings.API_BASE_URL + "/auth/threads/is_connected", params={"user_id": user_id})
+        is_twitter_connected = False
+        
+        threads_auth_url = None
+        twitter_auth_url = None
+        
+        if not is_threads_connected:
+            threads_auth_url = await self.http_client.get(settings.API_BASE_URL + "/auth/threads/connect", params={"user_id": user_id})
+            if threads_auth_url.json().get("url"):
+                context.user_data[f'threads_auth_url_{user_id}'] = threads_auth_url.json().get("url")
 
+        if not is_twitter_connected:
+            twitter_auth_url = "https://x.com/login"
+            if twitter_auth_url:
+                context.user_data[f'twitter_auth_url_{user_id}'] = twitter_auth_url
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("🔗 Connect Threads", callback_data=f"connect_threads_{user_id}") if not is_threads_connected else InlineKeyboardButton("⛓️‍💥‍ Disconnect Threads", callback_data=f"disconnect_threads_{user_id}"),
+                InlineKeyboardButton("🔗 Connect Twitter", callback_data=f"connect_twitter_{user_id}") if not is_twitter_connected else InlineKeyboardButton("⛓️‍💥 Disconnect Twitter", callback_data=f"disconnect_twitter_{user_id}"),
+            ],
+        ]
+
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(CONNECT_MESSAGE, reply_markup=reply_markup)
+
+    async def connect_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle button clicks from inline keyboard."""
+        query = update.callback_query
+        await query.answer()  # Answer the callback query to remove loading state
+        
+        # Extract action and user_id from callback_data
+        action, platform, user_id = query.data.split('_')
+        auth_url = context.user_data.get(f'{platform}_auth_url_{user_id}')
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("🔐 Authenticate", url=auth_url, callback_data=f"authenticate_{user_id}")
+            ],
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if platform == "threads":
+            # Open auth URL in browser
+            await query.delete_message()
+            # Redirect user to auth URL
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=f"Click here to connect your Threads account:",
+                connect_timeout=120,
+                reply_markup=reply_markup
+            )
+        elif platform == "twitter":
+            # Open auth URL in browser
+            await query.delete_message()
+            # Redirect user to auth URL
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=f"Click here to connect your X/Twitter account:",
+                connect_timeout=120,
+                reply_markup=reply_markup
+            )
+        
+        del context.user_data[f'{platform}_auth_url_{user_id}']
+            
+
+    async def authorize_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle authentication callback after successful login."""
+        logger.info(f"Callback received: {update.message.text}")
+        
+        # Get the full command text
+        command_text = update.message.text
+        if not command_text:
+            return
+            
+        # Extract the auth parameter (everything after &)
+        auth_param = command_text.split('&')[-1] if '&' in command_text else None
+        if not auth_param:
+            return
+            
+        user_id = None
+        
+        if auth_param.startswith('auth_success_'):
+            user_id = auth_param.split('_')[-1]
+            if str(update.effective_user.id) == user_id:
+                # Get account info to show in success message
+                try:
+                    response = await self.http_client.get(
+                        f"{settings.API_BASE_URL}/threads/user_account",
+                        params={"user_id": user_id}
+                    )
+                    account_data = response.json()
+                    
+                    if account_data.get("status") != "error":
+                        success_message = (
+                            "✅ Successfully connected your Threads account!\n\n"
+                            f"*Connected Account*\n"
+                            f"Username: @{account_data.get('username')}\n"
+                        )
+                        
+                        # Send success message with profile picture
+                        await update.message.reply_photo(
+                            photo=account_data.get("profile_picture_url"),
+                            caption=success_message,
+                            parse_mode='Markdown'
+                        )
+                    else:
+                        await update.message.reply_text("✅ Successfully connected your Threads account!")
+                except Exception as e:
+                    logger.error(f"Error fetching account info: {str(e)}")
+                    await update.message.reply_text("✅ Successfully connected your Threads account!")
+                
+                # Clean up any previous connection messages
+                if 'last_connect_message_id' in context.user_data:
+                    try:
+                        await context.bot.edit_message_reply_markup(
+                            chat_id=update.effective_chat.id,
+                            message_id=context.user_data['last_connect_message_id'],
+                            reply_markup=None
+                        )
+                    except Exception as e:
+                        logger.error(f"Error cleaning up messages: {str(e)}")
+                return
+                
+        elif auth_param.startswith('auth_error_'):
+            user_id = auth_param.split('_')[-1]
+            if str(update.effective_user.id) == user_id:
+                error_message = (
+                    "❌ Failed to connect your Threads account.\n"
+                    "Please try again using the /connect command."
+                )
+                if auth_param == 'auth_error_invalid_state':
+                    error_message = (
+                        "❌ Authentication session expired or invalid.\n"
+                        "Please try again using the /connect command."
+                    )
+                await update.message.reply_text(error_message)
+                return
 
     async def restart_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(RESTART_MESSAGE)
@@ -138,6 +277,32 @@ class TelegramBot:
             await message.reply_markdown(response)
         else:
             await message.reply_markdown(response)
+            
+    async def post_thread(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # Post a thread to Threads and read the query params
+        logger.info(f"Posting thread to Threads for user {update.message.from_user.id}")
+        logger.info(f"Message: {update.message}")
+        try:
+            user_id = update.message.from_user.id
+            message = update.message.text.replace("/post ", "")
+            if update.message.photo:
+                image_url = update.message.photo[-1].file_id
+            else:
+                image_url = None
+            
+            response = await self.http_client.post(
+                f"{settings.API_BASE_URL}/threads/post",
+                params={"user_id": user_id, "message": message, "image_url": image_url},
+                timeout=30
+            )
+            
+            if response.json().get("status") == "success":
+                await update.message.reply_text("✅ Thread posted successfully!")
+            else:
+                await update.message.reply_text("❌ Failed to post thread. Please try again.")
+        except Exception as e:
+            logger.error(f"Error posting thread: {str(e)}")
+            await update.message.reply_text("❌ Failed to post thread. Please try again.")
 
 
     # Bot Handlers
@@ -154,6 +319,12 @@ class TelegramBot:
             CommandHandler("connect", self.connect_command, filters=allowed_users_filter)
         )
         self.application.add_handler(
+            CallbackQueryHandler(self.connect_callback, pattern="^connect_")
+        )
+        self.application.add_handler(
+            CommandHandler("connect_callback", self.authorize_callback, filters=allowed_users_filter)
+        )
+        self.application.add_handler(
             CommandHandler("restart", self.restart_command, filters=allowed_users_filter)
         )
         self.application.add_handler(
@@ -161,6 +332,9 @@ class TelegramBot:
         )
         self.application.add_handler(
             CommandHandler("health", self.health_check, filters=allowed_users_filter)
+        )
+        self.application.add_handler(
+            CommandHandler("post", self.post_thread, filters=allowed_users_filter)
         )
         self.application.add_handler(
             MessageHandler(filters.ALL & allowed_users_filter, self.handle_message)

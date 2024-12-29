@@ -5,7 +5,7 @@ from psycopg2.extras import RealDictCursor
 from cryptography.fernet import Fernet
 import json
 
-from api.config import get_settings
+from api.utils.config import get_settings
 
 settings = get_settings()
 

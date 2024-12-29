@@ -1,4 +1,5 @@
 # Threads Auth Controller
+from fastapi.responses import RedirectResponse, HTMLResponse
 from api.utils.logger import logger
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
@@ -8,8 +9,9 @@ from pythreads.configuration import Configuration
 from pythreads.credentials import Credentials
 from pythreads.threads import Threads
 from pythreads.api import API
-from api.config import get_settings
+from api.utils.config import get_settings
 from api.database import db
+from api.utils.prompts import SUCCESS_PAGE_HTML
 
 settings = get_settings()
 
@@ -56,11 +58,14 @@ class ThreadsAuthHandler:
                 break
                 
         if not user_id:
-            return {"status": "error", "message": "Invalid state"}
+            logger.error("Invalid state or user_id not found")
+            bot_url = f"https://t.me/{settings.TELEGRAM_BOTNAME}?command=connect_callback&auth_error_invalid_state"
+            return RedirectResponse(url=bot_url)
 
         try:
             # Complete authorization
-            logger.info(f"Callback URL: {str(request.url)}")
+            logger.info(f"Processing authorization callback for user {user_id}")
+            
             # Check if the request was originally HTTPS
             forwarded_proto = request.headers.get('x-forwarded-proto', 'http')
             base_url = str(request.base_url)
@@ -68,29 +73,45 @@ class ThreadsAuthHandler:
                 base_url = 'https://' + base_url[7:]
             
             callback_url = str(base_url.replace('http://', 'https://')) + str(request.url.path) + '?' + str(request.url.query)
+            logger.info(f"Using callback URL: {callback_url}")
             
             credentials = Threads.complete_authorization(callback_url=callback_url, state=state_key, config=self.config)
             
-            #! TODO Store credentials in database
+            # Store credentials in database
             await self.db.store_user_threads_credentials(user_id, credentials.to_json())
+            logger.info(f"Successfully stored credentials for user {user_id}")
             
             # Clean up state
             del self.states[user_id]
             
-            # Notify user through Telegram
-            # await self.bot.send_message(
-            #     chat_id=user_id,
-            #     text="Successfully connected your Threads account! ✅"
-            # )
-            
-            return {"status": "success"}
+            # Redirect to Telegram bot with success parameter
+            return HTMLResponse(
+                content=SUCCESS_PAGE_HTML.format(
+                    telegram_botname=settings.TELEGRAM_BOTNAME
+                ),
+                status_code=200
+            )
             
         except Exception as e:
-            # await self.bot.send_message(
-            #     chat_id=user_id,
-            #     text=f"Failed to connect Threads account: {str(e)}"
-            # )
-            return {"status": "error", "message": str(e)}
+            logger.error(f"Error during authorization: {str(e)}")
+            return HTMLResponse(
+                content=SUCCESS_PAGE_HTML.format(
+                    telegram_botname=settings.TELEGRAM_BOTNAME
+                ).replace(
+                    "Successfully Connected!",
+                    "Connection Failed"
+                ).replace(
+                    "✓",
+                    "❌"
+                ).replace(
+                    "#4CAF50",
+                    "#f44336"
+                ).replace(
+                    "Your Threads account has been connected successfully.",
+                    f"Error: {str(e)}"
+                ),
+                status_code=400
+            )
         
     async def disconnect_threads(self, request: Request):
         """Command handler for /disconnect_threads"""
@@ -109,6 +130,11 @@ class ThreadsAuthHandler:
             return True
         except:
             return False
+        
+    async def is_connected(self, user_id: int):
+        """Check if the user is connected to Threads"""
+        credentials = await self.db.get_user_threads_credentials(user_id)
+        return credentials is not None
 
 
 auth_handler = ThreadsAuthHandler()
@@ -132,6 +158,12 @@ routes = [
         endpoint=auth_handler.disconnect_threads,
         methods=["POST"],
         name="disconnect_threads"
+    ),
+    APIRoute(
+        path="/is_connected",
+        endpoint=auth_handler.is_connected,
+        methods=["GET"],
+        name="is_connected"
     )
 ]
 

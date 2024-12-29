@@ -2,9 +2,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from api.config import get_settings
+from api.utils.config import get_settings
 from api.routers.threads import router as threads_router
 from api.routers.auth.threads.auth import router as threads_auth_router
+from api.routers.twitter import router as twitter_router
 from api.utils.logger import logger
 
 settings = get_settings()
@@ -32,5 +33,6 @@ def health_check():
 
 app.include_router(threads_router, prefix="/threads")
 app.include_router(threads_auth_router, prefix="/auth/threads")
+app.include_router(twitter_router, prefix="/twitter")
 
 logger.info("API routes added")
