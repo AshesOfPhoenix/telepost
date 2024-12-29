@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     THREADS_APP_ID: str
     THREADS_APP_SECRET: str
     THREADS_API_URL: str = "https://api.threads.net"
+    THREADS_REDIRECT_URI: str
     
     # OpenAI
     OPENAI_API_KEY: str

@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from api.config import get_settings
 from api.routers.threads import router as threads_router
 from api.routers.auth.threads.auth import router as threads_auth_router
+from api.utils.logger import logger
 
 settings = get_settings()
 
@@ -19,8 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory storage for auth states (replace with proper database in production)
-auth_states = {}
+logger.info("API initialized")
 
 @app.get("/")
 def read_root():
@@ -30,5 +30,7 @@ def read_root():
 def health_check():
     return {"status": "ok"}
 
-app.include_router(threads_router.router)
-app.include_router(threads_auth_router.router)
+app.include_router(threads_router, prefix="/threads")
+app.include_router(threads_auth_router, prefix="/auth/threads")
+
+logger.info("API routes added")

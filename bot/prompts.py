@@ -18,7 +18,8 @@ To begin, first you need to connect your X and Threads accounts by using the /co
 """
 
 CONNECT_MESSAGE = """
-Lets connect to your account. Please send me your email and password.
+Please click this link to connect your Threads account: 
+{auth_url}\n\nAfter authorization, you'll be redirected back.
 """
 
 
