@@ -115,6 +115,10 @@ class ThreadsAuthHandler:
         
     async def disconnect_threads(self, request: Request):
         """Command handler for /disconnect_threads"""
+        params = dict(request.query_params)
+        user_id = params.get('user_id')
+        
+        await self.db.delete_user_threads_credentials(user_id)
         return {"status": "ok"}
         
     async def verify_credentials(self, user_id: int):

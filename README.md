@@ -15,7 +15,10 @@ A Telegram bot for managing and scheduling social media posts across platforms, 
 The project consists of two main components:
 
 - **API Service**: FastAPI backend handling authentication and platform integrations
+    - **Threads**: Threads API integration with [Threads API Python Library](https://marclove.com/pythreads/index.html#)
+    - **Twitter**: Twitter API integration with [Twitter API Python Library](https://github.com/twitterdev/Twitter-API-v2-sample-code/tree/main/User-Auth)
 - **Bot Service**: Telegram bot interface built with python-telegram-bot
+    - **Telegram**: Telegram API integration with [python-telegram-bot](https://docs.python-telegram-bot.org/en/v21.9/index.html)
 
 ## Tech Stack
 
@@ -37,9 +40,9 @@ The project consists of two main components:
     3.1. Create a subdirectory for the certificates called `certs`
 
     3.2. Create a key and a certificate
-    - openssl genrsa -out project_key.pem 2048
-    - openssl req -new -key project_key.pem -out project_csr.pem
-    - openssl x509 -req -days 365 -in project_csr.pem -signkey project_key.pem -out project_cert.pem
+    - openssl genrsa -out key.pem 2048
+    - openssl req -new -key key.pem -out csr.pem
+    - openssl x509 -req -days 365 -in csr.pem -signkey key.pem -out cert.pem
 
 2. Create a `.env` file with the variables from the .env.example file
 

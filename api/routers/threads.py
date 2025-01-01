@@ -22,12 +22,16 @@ class ThreadsController:
         )
         logger.info("ThreadsController initialized")
         
+    async def is_user_connected(self, user_id: int):
+        credentials = await self.db.get_user_threads_credentials(user_id)
+        return credentials is not None
+        
     async def get_user_account(self, request: Request):
         try:
             params = dict(request.query_params)
             user_id = params.get('user_id')
             
-            credentials = await self.db.get_user_threads_credentials(user_id)
+            credentials = await self.is_user_connected(user_id)
             
             if not credentials:
                 return {"status": "error", "message": "User not connected to Threads"}
@@ -59,7 +63,7 @@ class ThreadsController:
             message = params.get('message')
             image_url = params.get('image_url')
             
-            credentials = await self.db.get_user_threads_credentials(user_id)
+            credentials = await self.is_user_connected(user_id)
             if not credentials:
                 return {"status": "error", "message": "User not connected to Threads"}
             

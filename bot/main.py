@@ -110,8 +110,15 @@ class TelegramBot:
             threads_auth_url = await self.http_client.get(settings.API_BASE_URL + "/auth/threads/connect", params={"user_id": user_id})
             if threads_auth_url.json().get("url"):
                 context.user_data[f'threads_auth_url_{user_id}'] = threads_auth_url.json().get("url")
+        else:
+            threads_auth_url = settings.API_BASE_URL + "/auth/threads/disconnect"
+            context.user_data[f'threads_auth_url_{user_id}'] = threads_auth_url
 
         if not is_twitter_connected:
+            twitter_auth_url = "https://x.com/login"
+            if twitter_auth_url:
+                context.user_data[f'twitter_auth_url_{user_id}'] = twitter_auth_url
+        else:
             twitter_auth_url = "https://x.com/login"
             if twitter_auth_url:
                 context.user_data[f'twitter_auth_url_{user_id}'] = twitter_auth_url
@@ -161,6 +168,46 @@ class TelegramBot:
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
                 text=f"Click here to connect your X/Twitter account:",
+                connect_timeout=120,
+                reply_markup=reply_markup
+            )
+        
+        del context.user_data[f'{platform}_auth_url_{user_id}']
+        
+    async def disconnect_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle button clicks from inline keyboard."""
+        query = update.callback_query
+        await query.answer()  # Answer the callback query to remove loading state
+        
+        # Extract action and user_id from callback_data
+        action, platform, user_id = query.data.split('_')
+        auth_url = context.user_data.get(f'{platform}_auth_url_{user_id}')
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("🔐 Confirm", url=auth_url, callback_data=f"disconnect_{user_id}")
+            ],
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        if platform == "threads":
+            # Open auth URL in browser
+            await query.delete_message()
+            # Redirect user to auth URL
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=f"Click here to disconnect your Threads account:",
+                connect_timeout=120,
+                reply_markup=reply_markup
+            )
+        elif platform == "twitter":
+            # Open auth URL in browser
+            await query.delete_message()
+            # Redirect user to auth URL
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=f"Click here to disconnect your X/Twitter account:",
                 connect_timeout=120,
                 reply_markup=reply_markup
             )
@@ -323,6 +370,9 @@ class TelegramBot:
         )
         self.application.add_handler(
             CommandHandler("connect_callback", self.authorize_callback, filters=allowed_users_filter)
+        )
+        self.application.add_handler(
+            CallbackQueryHandler(self.disconnect_callback, pattern="^disconnect_")
         )
         self.application.add_handler(
             CommandHandler("restart", self.restart_command, filters=allowed_users_filter)
