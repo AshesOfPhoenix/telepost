@@ -8,7 +8,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - JWT_SECRET=${JWT_SECRET}
+      - API_KEY=${API_KEY}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - THREADS_API_SECRET=${THREADS_API_SECRET}
@@ -31,7 +31,7 @@ services:
       context: .
       dockerfile: bot/Dockerfile
     environment:
-      - JWT_SECRET=${JWT_SECRET}
+      - API_KEY=${API_KEY}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - API_BASE_URL=${API_BASE_URL}
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}

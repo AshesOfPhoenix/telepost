@@ -42,7 +42,14 @@ class TelegramBot:
         logger.info("Starting up bot...")
         self.application = ApplicationBuilder().token(settings.TELEGRAM_TOKEN).build()
         self.api_base_url = settings.API_BASE_URL
-        self.http_client = httpx.AsyncClient()
+        self.http_client = httpx.AsyncClient(
+            headers={
+                settings.API_KEY_HEADER_NAME: settings.API_KEY,
+                "User-Agent": "TelegramBot/1.0"
+            },
+            timeout=30,
+            verify=True
+        )
         logger.info("Bot initialized")
         
     async def health_check(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

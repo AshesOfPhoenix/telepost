@@ -12,9 +12,8 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     
     # Security
-    JWT_SECRET: str
-    JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    API_KEY: str
+    API_KEY_HEADER_NAME: str = "X-API-KEY"
     
     # Encryption
     ENCRYPTION_KEY: str
