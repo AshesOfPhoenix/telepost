@@ -4,15 +4,13 @@ from fastapi.routing import APIRoute
 from api.utils.config import get_settings
 from fastapi import APIRouter, Depends, Request
 
-from api.database import db
-
+from api.base.social_controller_base import SocialController
 settings = get_settings()
 
-class TwitterController:
+class TwitterController(SocialController):
     def __init__(self):
-        self.db = db
-        
-        logger.info("TwitterController initialized")
+        super().__init__(provider_id="twitter")
+        logger.info("✅ TwitterController initialized")
         
     async def get_user_account(self, request: Request):
         try:
@@ -29,6 +27,9 @@ class TwitterController:
         except Exception as e:
             logger.error(f"Error posting thread: {str(e)}")
             return {"status": "error", "message": str(e)}
+    
+    async def disconnect(self, user_id: int) -> bool:
+        return await self.db.delete_user_twitter_credentials(user_id)
 
 twitter_controller = TwitterController()
 

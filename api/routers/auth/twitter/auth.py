@@ -5,35 +5,32 @@ from pydantic import BaseModel
 from fastapi import APIRouter, Request
 
 from api.utils.config import get_settings
-from api.database import db
-
+from api.db.database import db
+from api.base.auth_handler_base import AuthHandlerBase
 settings = get_settings()
 
 router = APIRouter()
 
-# Pydantic models for request/response validation
-class TwitterAuthorizeRequest(Request):
-    user_id: str
 
-class TwitterAuthHandler:
+class TwitterAuthHandler(AuthHandlerBase):
     def __init__(self):
-        self.states = {}
-        self.db = db
-        
+        super().__init__(provider_id="twitter")        
         logger.info("TwitterAuthHandler initialized")
     
-    async def authorize_twitter(self, request: Request):
+    async def authorize(self, request: Request):
         """Command handler for /connect_twitter"""
         params = dict(request.query_params)
+        user_id = params.get('user_id')
+        self.store_state(user_id, params.get('state'))
         pass
     
     async def complete_authorization(self, request: Request):
         """Command handler for /connect_twitter"""
         params = dict(request.query_params)
-    
+        user_id = self.get_user_id_from_state(params.get('state'))
         pass
         
-    async def disconnect_twitter(self, request: Request):
+    async def disconnect(self, request: Request):
         """Command handler for /disconnect_twitter"""
         pass
         
@@ -48,21 +45,21 @@ auth_handler = TwitterAuthHandler()
 routes = [
     APIRoute(
         path="/connect",
-        endpoint=auth_handler.authorize_twitter,
+        endpoint=auth_handler.authorize,
         methods=["GET"],
-        name="authorize_twitter"
+        name="authorize"
     ),
     APIRoute(
         path="/callback",
         endpoint=auth_handler.complete_authorization,
         methods=["GET"],
-        name="twitter_callback"
+        name="callback"
     ),
     APIRoute(
         path="/disconnect",
-        endpoint=auth_handler.disconnect_twitter,
+        endpoint=auth_handler.disconnect,
         methods=["POST"],
-        name="disconnect_twitter"
+        name="disconnect"
     )
 ]
 

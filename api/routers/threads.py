@@ -7,24 +7,21 @@ from pythreads.configuration import Configuration
 from pythreads.api import API
 from pythreads.threads import Threads
 from pythreads.credentials import Credentials
-from api.database import db
+from api.db.database import db
+from api.base.social_controller_base import SocialController
 
 settings = get_settings()
 
-class ThreadsController:
+class ThreadsController(SocialController):
     def __init__(self):
-        self.db = db
+        super().__init__(provider_id="threads")
         self.config = Configuration(
             scopes=["threads_basic", "threads_content_publish", "threads_manage_insights"], 
             app_id=settings.THREADS_APP_ID, 
             api_secret=settings.THREADS_APP_SECRET, 
             redirect_uri=settings.THREADS_REDIRECT_URI
         )
-        logger.info("ThreadsController initialized")
-    
-    async def get_user_credentials(self, user_id: int):
-        credentials = await self.db.get_user_threads_credentials(user_id)
-        return credentials
+        logger.info("✅ ThreadsController initialized")
         
     async def get_user_account(self, request: Request):
         try:
@@ -34,7 +31,7 @@ class ThreadsController:
             credentials = await self.get_user_credentials(user_id)
             
             if not credentials:
-                return {"status": "error", "message": "User not connected to Threads"}
+                return {"status": "missing", "message": "❌ User not connected to Threads"}
             
             # Convert credentials from JSON string to Threads credentials object
             threads_credentials = Credentials.from_json(credentials)
@@ -66,7 +63,7 @@ class ThreadsController:
             
             credentials = await self.get_user_credentials(user_id)
             if not credentials:
-                return {"status": "error", "message": "User not connected to Threads"}
+                return {"status": "missing", "message": "❌ User not connected to Threads"}
             
             threads_credentials = Credentials.from_json(credentials)
             logger.info(f"Credentials: {threads_credentials}")
@@ -79,6 +76,7 @@ class ThreadsController:
         except Exception as e:
             logger.error(f"Error posting thread: {str(e)}")
             return {"status": "error", "message": str(e)}
+    
 
 threads_controller = ThreadsController()
 

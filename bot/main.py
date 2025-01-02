@@ -50,7 +50,7 @@ class TelegramBot:
             timeout=30,
             verify=True
         )
-        logger.info("Bot initialized")
+        logger.info("✅ Bot initialized")
         
     async def health_check(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info("Health check started")
@@ -84,8 +84,8 @@ class TelegramBot:
             )
             account_data = response.json()
             
-            if account_data.get("status") == "error":
-                await update.message.reply_text(f"Error: {account_data.get('message')}")
+            if account_data.get("status") == "missing":
+                await update.message.reply_text(f"{account_data.get('message')}")
                 return
                 
             # Format the account data into a readable message
@@ -107,7 +107,9 @@ class TelegramBot:
         """Sends a message with inline buttons for platform connection."""
         user_id = update.message.from_user.id
         
-        is_threads_connected = await self.http_client.get(settings.API_BASE_URL + "/auth/threads/is_connected", params={"user_id": user_id})
+        threads_response = await self.http_client.get(settings.API_BASE_URL + "/auth/threads/is_connected", params={"user_id": user_id})
+        logger.info(f"Is threads connected: {threads_response.json()}")
+        is_threads_connected = threads_response.json()
         is_twitter_connected = False
         
         threads_auth_url = None
@@ -132,11 +134,22 @@ class TelegramBot:
         
         keyboard = [
             [
-                InlineKeyboardButton("🔗 Connect Threads", callback_data=f"connect_threads_{user_id}") if not is_threads_connected else InlineKeyboardButton("⛓️‍💥‍ Disconnect Threads", callback_data=f"disconnect_threads_{user_id}"),
-                InlineKeyboardButton("🔗 Connect Twitter", callback_data=f"connect_twitter_{user_id}") if not is_twitter_connected else InlineKeyboardButton("⛓️‍💥 Disconnect Twitter", callback_data=f"disconnect_twitter_{user_id}"),
+                InlineKeyboardButton(
+                    "🔗 Connect Threads", 
+                    callback_data=f"connect_threads_{user_id}"
+                ) if not is_threads_connected else InlineKeyboardButton(
+                    "⛓️‍💥‍ Disconnect Threads", 
+                    callback_data=f"disconnect_threads_{user_id}"
+                ),
+                InlineKeyboardButton(
+                    "🔗 Connect Twitter", 
+                    callback_data=f"connect_twitter_{user_id}"
+                ) if not is_twitter_connected else InlineKeyboardButton(
+                    "⛓️‍💥 Disconnect Twitter", 
+                    callback_data=f"disconnect_twitter_{user_id}"
+                ),
             ],
         ]
-
 
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(CONNECT_MESSAGE, reply_markup=reply_markup)
@@ -188,38 +201,42 @@ class TelegramBot:
         
         # Extract action and user_id from callback_data
         action, platform, user_id = query.data.split('_')
-        auth_url = context.user_data.get(f'{platform}_auth_url_{user_id}')
         
-        keyboard = [
-            [
-                InlineKeyboardButton("🔐 Confirm", url=auth_url, callback_data=f"disconnect_{user_id}")
-            ],
-        ]
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        if platform == "threads":
-            # Open auth URL in browser
-            await query.delete_message()
-            # Redirect user to auth URL
+        try:
+            if platform == "threads":
+                # Make direct HTTP request to disconnect endpoint
+                response = await self.http_client.post(
+                    f"{settings.API_BASE_URL}/auth/threads/disconnect",
+                    params={"user_id": user_id}
+                )
+                
+                if response.status_code == 200:
+                    # Delete the original message with the keyboard
+                    await query.delete_message()
+                    await context.bot.send_message(
+                        chat_id=query.message.chat_id,
+                        text="✅ Successfully disconnected your Threads account!"
+                    )
+                else:
+                    await context.bot.send_message(
+                        chat_id=query.message.chat_id,
+                        text="❌ Failed to disconnect your account. Please try again."
+                    )
+                    
+            elif platform == "twitter":
+                # Handle Twitter disconnect similarly
+                await query.delete_message()
+                await context.bot.send_message(
+                    chat_id=query.message.chat_id,
+                    text="Twitter disconnect not implemented yet."
+                )
+                
+        except Exception as e:
+            logger.error(f"Error during disconnect: {str(e)}")
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
-                text=f"Click here to disconnect your Threads account:",
-                connect_timeout=120,
-                reply_markup=reply_markup
+                text="❌ An error occurred while disconnecting your account. Please try again."
             )
-        elif platform == "twitter":
-            # Open auth URL in browser
-            await query.delete_message()
-            # Redirect user to auth URL
-            await context.bot.send_message(
-                chat_id=query.message.chat_id,
-                text=f"Click here to disconnect your X/Twitter account:",
-                connect_timeout=120,
-                reply_markup=reply_markup
-            )
-        
-        del context.user_data[f'{platform}_auth_url_{user_id}']
             
 
     async def authorize_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -266,7 +283,7 @@ class TelegramBot:
                         await update.message.reply_text("✅ Successfully connected your Threads account!")
                 except Exception as e:
                     logger.error(f"Error fetching account info: {str(e)}")
-                    await update.message.reply_text("✅ Successfully connected your Threads account!")
+                    await update.message.reply_text("❌ Failed to connect your Threads account.")
                 
                 # Clean up any previous connection messages
                 if 'last_connect_message_id' in context.user_data:
@@ -352,6 +369,8 @@ class TelegramBot:
             
             if response.json().get("status") == "success":
                 await update.message.reply_text("✅ Thread posted successfully!")
+            elif response.json().get("status") == "missing":
+                await update.message.reply_text("❌ User not connected to Threads")
             else:
                 await update.message.reply_text("❌ Failed to post thread. Please try again.")
         except Exception as e:

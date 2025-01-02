@@ -14,6 +14,18 @@ class Settings(BaseSettings):
     API_KEY: str
     API_KEY_HEADER_NAME: str = "X-API-KEY"
     
+    # Allowed hosts
+    ALLOWED_HOSTS: str = ""
+    
+    @field_validator("ALLOWED_HOSTS", mode="after")
+    @classmethod
+    def validate_allowed_hosts(cls, value) -> List[str]:
+        if isinstance(value, str):
+            return [x.strip() for x in value.split(",")]
+        elif isinstance(value, list):
+            return value
+        return ["localhost", "127.0.0.1"]
+    
     # Encryption
     ENCRYPTION_KEY: str
     

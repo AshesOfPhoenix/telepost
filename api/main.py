@@ -12,7 +12,11 @@ from api.utils.auth import verify_api_key
 
 settings = get_settings()
 
+logger.info("Initializing API...")
+
 app = FastAPI(dependencies=[Depends(verify_api_key)])
+
+logger.info("✓ API created")
 
 # CORS middleware configuration
 app.add_middleware(
@@ -26,10 +30,10 @@ app.add_middleware(
 
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["api", "localhost", "127.0.0.1"],
+    allowed_hosts=settings.ALLOWED_HOSTS,
 )
 
-logger.info("API initialized")
+logger.info("✓ Trusted host middleware added")
 
 @app.get("/")
 def read_root():
@@ -43,4 +47,6 @@ app.include_router(threads_router, prefix="/threads")
 app.include_router(threads_auth_router, prefix="/auth/threads")
 app.include_router(twitter_router, prefix="/twitter")
 
-logger.info("API routes added")
+logger.info("✓ API routes added")
+
+logger.info("✅ API initialized")

@@ -1,9 +1,10 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";  -- For encryption
 
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     telegram_id BIGINT UNIQUE NOT NULL,
     threads_credentials BYTEA,  -- Encrypted credentials
+    twitter_credentials BYTEA,  -- Encrypted credentials
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -17,6 +18,8 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+-- Create trigger without IF NOT EXISTS (not supported in this context)
+DROP TRIGGER IF EXISTS update_user_updated_at ON users;
 CREATE TRIGGER update_user_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW
