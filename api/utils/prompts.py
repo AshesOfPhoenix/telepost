@@ -43,7 +43,7 @@ SUCCESS_PAGE_HTML = """
     <div class="container">
         <div class="success-icon">✓</div>
         <h2>Successfully Connected!</h2>
-        <p class="message">Your Threads account has been connected successfully.</p>
+        <p class="message">Your {platform} account has been connected successfully.</p>
         <a href="{redirect_url}" class="telegram-link">
             Return to Telegram
         </a>

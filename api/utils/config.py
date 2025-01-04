@@ -45,6 +45,11 @@ class Settings(BaseSettings):
     THREADS_API_URL: str = "https://api.threads.net"
     THREADS_REDIRECT_URI: str
     
+    # Twitter API
+    TWITTER_CLIENT_ID: str
+    TWITTER_CLIENT_SECRET: str
+    TWITTER_REDIRECT_URI: str
+    
     # Telegram
     TELEGRAM_BOTNAME: str
     

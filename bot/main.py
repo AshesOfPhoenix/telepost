@@ -1,7 +1,7 @@
 import httpx
 from bot.utils.config import get_settings
 from bot.utils.logger import logger
-from bot.utils.prompts import HELP_MESSAGE, POST_SUCCESS_MESSAGE, START_MESSAGE, CONNECT_MESSAGE, RESTART_MESSAGE, ACCOUNT_INFO_MESSAGE, NO_ACCOUNT_MESSAGE
+from bot.utils.prompts import HELP_MESSAGE, POST_SUCCESS_MESSAGE, START_MESSAGE, CONNECT_MESSAGE, RESTART_MESSAGE, THREADS_ACCOUNT_INFO_MESSAGE, NO_ACCOUNT_MESSAGE, TWITTER_ACCOUNT_INFO_MESSAGE
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LoginUrl
 from telegram.ext import (
     ContextTypes,
@@ -79,62 +79,130 @@ class TelegramBot:
     async def get_user_account(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             user_id = update.message.from_user.id
-            response = await self.http_client.get(
+            
+            # Get Threads account data
+            threads_response = await self.http_client.get(
                 f"{settings.API_BASE_URL}/threads/user_account",
                 params={"user_id": user_id}
             )
-            account_data = response.json()
+            threads_account_data = threads_response.json()
             
-            if account_data.get("status") == "missing":
-                await update.message.reply_text(NO_ACCOUNT_MESSAGE, parse_mode='Markdown')
-                return
+            if threads_account_data.get("status") == "missing":
+                raise Exception("User not connected to Threads")
                 
             # Format the account data into a readable message
-            logger.info(f"Account data: {account_data}")
+            logger.info(f"Threads account data: {threads_account_data}")
             
-            message = ACCOUNT_INFO_MESSAGE.format(
-                username=account_data.get("username"),
-                bio=account_data.get("biography", "No bio")
+            message = THREADS_ACCOUNT_INFO_MESSAGE.format(
+                username=threads_account_data.get("username"),
+                bio=threads_account_data.get("biography", "No bio"),
+                followers_count=threads_account_data.get("followers_count"),
+                likes=threads_account_data.get("likes"),
+                replies=threads_account_data.get("replies"),
+                reposts=threads_account_data.get("reposts"),
+                quotes=threads_account_data.get("quotes"),
             )
             
             await update.message.reply_photo(
-                photo=account_data.get("profile_picture_url"),
+                photo=threads_account_data.get("profile_picture_url"),
+                caption=message,
+                parse_mode='Markdown'
+            )
+        
+        except Exception as e:
+            if str(e) == "User not connected to Threads":
+                await update.message.reply_text(NO_ACCOUNT_MESSAGE.format(platform="Threads"), parse_mode='Markdown')
+            else:
+                logger.error(f"Error in get_user_account: {str(e)}")
+                await update.message.reply_text("Sorry, there was an error getting your Threads account information.", parse_mode='Markdown')
+            
+        try:
+            # Get Twitter account data
+            twitter_response = await self.http_client.get(
+                f"{settings.API_BASE_URL}/twitter/user_account",
+                params={"user_id": user_id}
+            )
+            twitter_account_data = twitter_response.json()
+            
+            if twitter_account_data.get("status") == "missing":
+                raise Exception("User not connected to Twitter")
+            
+            logger.info(f"Twitter account data: {twitter_account_data}")
+            
+            # If verified_type is "blue", add a verified badge
+            verified_type = twitter_account_data.get("verified_type")
+            verified_badge = "✅" if verified_type == "blue" else ""
+            
+            # Format the account data into a readable message
+            message = TWITTER_ACCOUNT_INFO_MESSAGE.format(
+                name=twitter_account_data.get("name"),
+                username=twitter_account_data.get("username"),
+                
+                verified_badge=verified_badge,
+                # verified_type=verified_type,
+                
+                location=twitter_account_data.get("location"),
+                protected=twitter_account_data.get("protected"),
+                created_at=twitter_account_data.get("created_at"),
+                
+                bio=twitter_account_data.get("biography", "No bio"),
+                
+                followers_count=twitter_account_data.get("metrics").get("followers_count"),
+                following_count=twitter_account_data.get("metrics").get("following_count"),
+                tweet_count=twitter_account_data.get("metrics").get("tweet_count"),
+                listed_count=twitter_account_data.get("metrics").get("listed_count"),
+                like_count=twitter_account_data.get("metrics").get("like_count"),
+                media_count=twitter_account_data.get("metrics").get("media_count")
+            )
+            
+            await update.message.reply_photo(
+                photo=twitter_account_data.get("profile_picture_url"),
                 caption=message,
                 parse_mode='Markdown'
             )
             
         except Exception as e:
-            logger.error(f"Error in get_user_account: {str(e)}")
-            await update.message.reply_text("Sorry, there was an error getting your account information.", parse_mode='Markdown')
+            if str(e) == "User not connected to Twitter":
+                await update.message.reply_text(NO_ACCOUNT_MESSAGE.format(platform="Twitter"), parse_mode='Markdown')
+            else:
+                logger.error(f"Error in get_user_account: {str(e)}")
+                await update.message.reply_text("Sorry, there was an error getting your Twitter account information.", parse_mode='Markdown')
 
     async def connect_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Sends a message with inline buttons for platform connection."""
         user_id = update.message.from_user.id
         
-        threads_response = await self.http_client.get(settings.API_BASE_URL + "/auth/threads/is_connected", params={"user_id": user_id})
-        logger.info(f"Is threads connected: {threads_response.json()}")
-        is_threads_connected = threads_response.json()
-        is_twitter_connected = False
-        
-        threads_auth_url = None
-        twitter_auth_url = None
-        
-        if not is_threads_connected:
-            threads_auth_url = await self.http_client.get(settings.API_BASE_URL + "/auth/threads/connect", params={"user_id": user_id})
-            if threads_auth_url.json().get("url"):
-                context.user_data[f'threads_auth_url_{user_id}'] = threads_auth_url.json().get("url")
-        else:
-            threads_auth_url = settings.API_BASE_URL + "/auth/threads/disconnect"
-            context.user_data[f'threads_auth_url_{user_id}'] = threads_auth_url
+        try:
+            threads_response = await self.http_client.get(settings.API_BASE_URL + "/auth/threads/is_connected", params={"user_id": user_id})
+            logger.info(f"Is threads connected: {threads_response.json()}")
+            is_threads_connected = threads_response.json()
+            
+            twitter_response = await self.http_client.get(settings.API_BASE_URL + "/auth/twitter/is_connected", params={"user_id": user_id})
+            logger.info(f"Is twitter connected: {twitter_response.json()}")
+            is_twitter_connected = twitter_response.json()
+            
+            threads_auth_url = None
+            twitter_auth_url = None
+            
+            if not is_threads_connected:
+                threads_auth_url = await self.http_client.get(settings.API_BASE_URL + "/auth/threads/connect", params={"user_id": user_id})
+                if threads_auth_url.json().get("url"):
+                    context.user_data[f'threads_auth_url_{user_id}'] = threads_auth_url.json().get("url")
+            else:
+                threads_auth_url = f"{settings.API_BASE_URL}/auth/threads/disconnect?user_id={user_id}"
+                context.user_data[f'threads_auth_url_{user_id}'] = threads_auth_url
 
-        if not is_twitter_connected:
-            twitter_auth_url = "https://x.com/login"
-            if twitter_auth_url:
+            if not is_twitter_connected:
+                twitter_auth_url = await self.http_client.get(settings.API_BASE_URL + "/auth/twitter/connect", params={"user_id": user_id})
+                if twitter_auth_url.json().get("url"):
+                    context.user_data[f'twitter_auth_url_{user_id}'] = twitter_auth_url.json().get("url")
+            else:
+                twitter_auth_url = f"{settings.API_BASE_URL}/auth/twitter/disconnect?user_id={user_id}"
                 context.user_data[f'twitter_auth_url_{user_id}'] = twitter_auth_url
-        else:
-            twitter_auth_url = "https://x.com/login"
-            if twitter_auth_url:
-                context.user_data[f'twitter_auth_url_{user_id}'] = twitter_auth_url
+                
+        except Exception as e:
+            logger.error(f"Error in connect_command: {str(e)}")
+            await update.message.reply_text("❌ An error occurred while connecting your account. Please try again.", parse_mode='Markdown')
         
         keyboard = [
             [
@@ -162,6 +230,8 @@ class TelegramBot:
         """Handle button clicks from inline keyboard."""
         query = update.callback_query
         await query.answer()  # Answer the callback query to remove loading state
+        
+        logger.info(f"Callback data: {query.data}")
         
         # Extract action and user_id from callback_data
         action, platform, user_id = query.data.split('_')
@@ -229,12 +299,25 @@ class TelegramBot:
                     
             elif platform == "twitter":
                 # Handle Twitter disconnect similarly
-                await query.delete_message()
-                await context.bot.send_message(
-                    chat_id=query.message.chat_id,
-                    text="Twitter disconnect not implemented yet."
+                response = await self.http_client.post(
+                    f"{settings.API_BASE_URL}/auth/twitter/disconnect",
+                    params={"user_id": user_id}
                 )
+                logger.info(f"Twitter disconnect response: {response.json()}")
                 
+                if response.status_code == 200:
+                    await query.delete_message()
+                    await context.bot.send_message(
+                        chat_id=query.message.chat_id,
+                        text="✅ Successfully disconnected your Twitter account!"
+                    )
+                else:
+                    await context.bot.send_message(
+                        chat_id=query.message.chat_id,
+                        text="❌ Failed to disconnect your account. Please try again."
+                    )
+    
+
         except Exception as e:
             logger.error(f"Error during disconnect: {str(e)}")
             await context.bot.send_message(
@@ -358,15 +441,21 @@ class TelegramBot:
         logger.info(f"Begin postting a message to Threads for user {update.message.from_user.id}")
         try:
             user_id = update.message.from_user.id
-            message = " ".join(context.args)
-            logger.info(f"Message: {message}")
-            if update.message.photo:
-                image_url = update.message.photo[-1].file_id
+            message = " ".join(context.args) # Get the message from the command args - Does not correctly handle spaces and new lines
+            message = update.message.text_markdown.replace("/post", "") # Get the message from the command text
+            
+            message = message.strip()
+            is_message_empty = len(message) == 0 or message == None
+            
+            if len(update.message.photo) > 0:
+                image_url = update.message.photo
             else:
                 image_url = None
                 
-            if message == "" or message == None:
-                await update.message.reply_text("❌ Please provide a message to post.", parse_mode='Markdown')
+            logger.info(f"Message: {message} - Message Empty: {is_message_empty} - Message Length: {len(message)}. Photo: {update.message.photo} - {image_url}")
+                
+            if is_message_empty and not image_url:
+                await update.message.reply_text("❌ Please provide an text or image to post.", parse_mode='Markdown')
                 return
             
             response = await self.http_client.post(
@@ -377,7 +466,8 @@ class TelegramBot:
             logger.info(f"Response: {response.json()}")
             
             thread_url = response.json().get("thread").get("permalink")
-            timestamp = response.json().get("thread").get("timestamp")
+            # Parse 2025-01-04T11:39:58+0000 to 2025-01-04 11:39:58
+            timestamp = response.json().get("thread").get("timestamp").replace("T", " ").replace("+0000", "")
             logger.info(f"Thread URL: {thread_url}")
             
             if response.json().get("status") == "success":

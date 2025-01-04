@@ -7,6 +7,7 @@ from api.utils.config import get_settings
 from api.routers.threads import router as threads_router
 from api.routers.auth.threads.auth import router as threads_auth_router
 from api.routers.twitter import router as twitter_router
+from api.routers.auth.twitter.auth import router as twitter_auth_router
 from api.utils.logger import logger
 from api.utils.auth import verify_api_key
 
@@ -46,6 +47,7 @@ def health_check():
 app.include_router(threads_router, prefix="/threads")
 app.include_router(threads_auth_router, prefix="/auth/threads")
 app.include_router(twitter_router, prefix="/twitter")
+app.include_router(twitter_auth_router, prefix="/auth/twitter")
 
 logger.info("✓ API routes added")
 

@@ -33,6 +33,7 @@ Your all-in-one solution for social media management:
 
 🚀 *Let's get started!*
 Use /connect to link your social media accounts.
+Use /account to view your connected accounts.
 Use /help to see all available commands.
 """
 
@@ -53,7 +54,7 @@ All systems are back online! You can continue using all commands.
 Use /help to see available options.
 """
 
-ACCOUNT_INFO_MESSAGE = """
+THREADS_ACCOUNT_INFO_MESSAGE = """
 ✨ *Threads Account Information* ✨
 
 👤 *Profile Information*
@@ -63,9 +64,51 @@ ACCOUNT_INFO_MESSAGE = """
 📝 *Bio*
 {bio}
 
+📊 *Stats*
+• 👥 Followers: {followers_count:,}
+• 👤 Following: {reposts:,}
+• 🐦 Tweets: {replies:,}
+• 📑 Lists: {quotes:,}
+• ❤️ Likes: {likes:,}
+
 ⚡️ *Quick Actions*
 • 📝 /post - Share new content
 • 📅 /schedule - Plan future posts
+• 💽 /status - View scheduled posts
+• 📊 /account - View account stats
+• ⚙️ /settings - Manage account
+• ❌ /disconnect - Remove account
+
+💡 *Tip:* Use /help to see all available commands
+"""
+
+TWITTER_ACCOUNT_INFO_MESSAGE = """
+✨ *Twitter Account Information* ✨
+
+👤 *Profile Information*
+• Name: *{name}* {verified_badge}
+• Username: *@{username}*
+• Profile: [Open on Twitter](https://x.com/{username})
+• 📍 Location: {location}
+• 🔒 Protected Account: {protected}
+• 📅 Joined: {created_at}
+
+📝 *Bio*
+{bio}
+
+📊 *Stats*
+• 👥 Followers: {followers_count:,}
+• 👤 Following: {following_count:,}
+• 🐦 Tweets: {tweet_count:,}
+• 📑 Lists: {listed_count:,}
+• ❤️ Likes: {like_count:,}
+• 🖼️ Media: {media_count:,}
+
+⚡️ *Quick Actions*
+• 📝 /post - Share new content
+• 📅 /schedule - Plan future posts
+• 💽 /status - View scheduled posts
+• 📊 /account - View account stats
 • ⚙️ /settings - Manage account
 • ❌ /disconnect - Remove account
 
@@ -109,11 +152,11 @@ Use /status to view all scheduled posts.
 """
 
 NO_ACCOUNT_MESSAGE = """
-⚠️ *No Account Connected*
+⚠️ *No {platform} Account Connected*
 
 Please connect your account first:
 1. Use /connect to get started
-2. Choose your platform
+2. Choose {platform}
 3. Follow the authentication steps
 
 Need help? Use /help for assistance.

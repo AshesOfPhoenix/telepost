@@ -26,6 +26,7 @@ class ThreadsAuthHandler(AuthHandlerBase):
     
     async def authorize(self, request: Request):
         """Command handler for /connect"""
+        logger.info("Generating Threads authorization URL")
         params = dict(request.query_params)
         user_id = params.get('user_id')
         
@@ -76,6 +77,7 @@ class ThreadsAuthHandler(AuthHandlerBase):
             
             return HTMLResponse(
                 content=SUCCESS_PAGE_HTML.format(
+                    platform="Threads",
                     redirect_url=bot_url
                 ),
                 status_code=200
@@ -85,6 +87,7 @@ class ThreadsAuthHandler(AuthHandlerBase):
             logger.error(f"Error during authorization: {str(e)}")
             return HTMLResponse(
                 content=SUCCESS_PAGE_HTML.format(
+                    platform="Threads",
                     redirect_url=f"https://t.me/{settings.TELEGRAM_BOTNAME}?start=YOYOYO"
                 ).replace(
                     "Successfully Connected!",

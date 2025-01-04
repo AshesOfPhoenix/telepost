@@ -39,13 +39,32 @@ class ThreadsController(SocialController):
             
             async with API(credentials=threads_credentials) as api:
                 account = await api.account()
+                # 'views', 'likes', 'replies', 'reposts', 'quotes', 'followers_count', 'follower_demographics'
+                insights: dict = await api.user_insights(
+                    metrics=['views', 'likes', 'replies', 'reposts', 'quotes', 'followers_count'],
+                )
                 # Convert account data to a dictionary
                 logger.info(f"Account: {account}")
+                logger.info(f"Insights: {insights}")
+                data = insights.get("data", [])
+                
+                likes = next((x.get("total_value", {}).get("value", 0) for x in data if x.get("name") == "likes"), 0)
+                replies = next((x.get("total_value", {}).get("value", 0) for x in data if x.get("name") == "replies"), 0)
+                reposts = next((x.get("total_value", {}).get("value", 0) for x in data if x.get("name") == "reposts"), 0)
+                quotes = next((x.get("total_value", {}).get("value", 0) for x in data if x.get("name") == "quotes"), 0)
+                followers_count = next((x.get("total_value", {}).get("value", 0) for x in data if x.get("name") == "followers_count"), 0)
+                
                 account_data = {
+                    "id": account.get("id"),
                     "username": account.get("username"),
                     "biography": account.get("threads_biography"),
                     "profile_picture_url": account.get("threads_profile_picture_url"),
-                    "id": account.get("id")
+                    #"views": insights.get("views"),
+                    "likes": likes,
+                    "replies": replies,
+                    "reposts": reposts,
+                    "quotes": quotes,
+                    "followers_count": followers_count,
                 }
                 logger.info(f"Account data: {account_data}")
                 return account_data

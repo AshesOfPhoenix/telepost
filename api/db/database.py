@@ -66,16 +66,19 @@ class Database:
     async def delete_user_credentials(self, telegram_id: str, provider_id: str):
         try:
             with self.conn.cursor() as cur:
-                cur.execute(f"DELETE FROM users WHERE telegram_id = %s AND {provider_id}_credentials IS NOT NULL", (telegram_id,))
+                cur.execute(f"UPDATE users SET {provider_id}_credentials = NULL WHERE telegram_id = %s", (telegram_id,))
                 self.conn.commit()
         except Exception as e:
             logger.error(f"Error deleting user {provider_id} credentials: {str(e)}")
             raise e
         
-    async def store_user_credentials(self, telegram_id: str, credentials: Credentials, provider_id: str):
+    async def store_user_credentials(self, telegram_id: str, credentials: Credentials | dict, provider_id: str):
         try:
             with self.conn.cursor() as cur:
-                encrypted_creds = self.encrypt_data(credentials.to_json())
+                if isinstance(credentials, Credentials):
+                    encrypted_creds = self.encrypt_data(credentials.to_json())
+                else:
+                    encrypted_creds = self.encrypt_data(credentials)
                 provider_column = f"{provider_id}_credentials"
                 statement = f"""
                     INSERT INTO users (telegram_id, {provider_column})
@@ -89,7 +92,7 @@ class Database:
             logger.error(f"Error storing user {provider_id} credentials: {str(e)}")
             raise e
 
-    async def get_user_credentials(self, telegram_id: str, provider_id: str) -> Credentials | None:
+    async def get_user_credentials(self, telegram_id: str, provider_id: str) -> Credentials | dict | None:
         try:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(f"SELECT {provider_id}_credentials FROM users WHERE telegram_id = %s", (telegram_id,))
