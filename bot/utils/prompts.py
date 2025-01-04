@@ -1,27 +1,120 @@
 HELP_MESSAGE = """
-This bot can help you schedule and thread your posts efficiently. Here are some commands you can use:
+🤖 *Welcome to the Help Center!*
 
-1. **/schedule** - Schedule a post for a specific time. Just provide the content and the time you want it to be posted.
-2. **/thread** - Create a thread of posts. You can reply to a previous post to continue the conversation.
-3. **/status** - Check the status of your scheduled posts.
-4. **/cancel** - Cancel a scheduled post before it goes live.
+Here are all the commands you can use:
 
-Feel free to ask me anything else, and I'll do my best to assist you!
+📝 *Content Creation*
+• /post - Create and share a new post
+• /thread - Create a thread of connected posts
+• /schedule - Schedule posts for later
 
+📊 *Management*
+• /account - View your connected accounts
+• /status - Check your scheduled posts
+• /cancel - Cancel a scheduled post
+
+🔗 *Account Settings*
+• /connect - Link your social media accounts
+• /disconnect - Remove linked accounts
+• /settings - Adjust your preferences
+
+💡 *Need more help?*
+Feel free to ask me anything! I'm here to assist you 24/7.
 """
 
 START_MESSAGE = """
-Welcome to Telepost bot.
-A one-in-all social media scheduler and post improver.
+✨ *Welcome to Telepost Bot!* ✨
 
-To begin, first you need to connect your X and Threads accounts by using the /connect command.
+Your all-in-one solution for social media management:
+• 📱 Manage multiple platforms
+• 📊 Schedule your content
+• 🧵 Create engaging threads
+• ✍️ Improve your posts
+
+🚀 *Let's get started!*
+Use /connect to link your social media accounts.
+Use /help to see all available commands.
 """
 
 CONNECT_MESSAGE = """
-To connect to your preferred social media platform, please click the button below.
+🔗 *Connect Your Social Media*
+
+Choose a platform to connect:
+• Threads - Share your thoughts
+• Twitter - Reach your audience
+
+👇 *Click the buttons below to begin*
 """
 
-
 RESTART_MESSAGE = """
-Restarted the bot.
+🔄 *Bot Restarted Successfully*
+
+All systems are back online! You can continue using all commands.
+Use /help to see available options.
+"""
+
+ACCOUNT_INFO_MESSAGE = """
+✨ *Threads Account Information* ✨
+
+👤 *Profile Information*
+• Username: *@{username}*
+• Profile: [Open on Threads](https://www.threads.net/@{username})
+
+📝 *Bio*
+{bio}
+
+⚡️ *Quick Actions*
+• 📝 /post - Share new content
+• 📅 /schedule - Plan future posts
+• ⚙️ /settings - Manage account
+• ❌ /disconnect - Remove account
+
+💡 *Tip:* Use /help to see all available commands
+"""
+
+DISCONNECTED_MESSAGE = """
+❌ *Account Disconnected*
+
+Your account has been successfully unlinked.
+Use /connect to add it back anytime!
+"""
+
+ERROR_MESSAGE = """
+⚠️ *Oops! Something went wrong*
+
+Error: {error}
+
+Please try again or use /help for assistance.
+"""
+
+POST_SUCCESS_MESSAGE = """
+✅ *Post Successfully Shared!*
+
+View your post: [Click here]({post_url})
+
+📊 *Quick Stats*
+• Time: {timestamp}
+• Platform: {platform}
+
+Want to post more? Use /post again!
+"""
+
+SCHEDULE_SUCCESS_MESSAGE = """
+📅 *Post Scheduled Successfully!*
+
+⏰ Scheduled for: *{scheduled_time}*
+📱 Platform: *{platform}*
+
+Use /status to view all scheduled posts.
+"""
+
+NO_ACCOUNT_MESSAGE = """
+⚠️ *No Account Connected*
+
+Please connect your account first:
+1. Use /connect to get started
+2. Choose your platform
+3. Follow the authentication steps
+
+Need help? Use /help for assistance.
 """

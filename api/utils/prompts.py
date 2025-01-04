@@ -44,14 +44,14 @@ SUCCESS_PAGE_HTML = """
         <div class="success-icon">✓</div>
         <h2>Successfully Connected!</h2>
         <p class="message">Your Threads account has been connected successfully.</p>
-        <a href="https://t.me/{telegram_botname}" class="telegram-link">
+        <a href="{redirect_url}" class="telegram-link">
             Return to Telegram
         </a>
     </div>
     <script>
         setTimeout(() => {{
             window.close();
-            window.location.href = "https://t.me/{telegram_botname}";
+            window.location.href = "{redirect_url}";
         }}, 3000);
     </script>
 </body>

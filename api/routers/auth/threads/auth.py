@@ -20,12 +20,12 @@ class ThreadsAuthHandler(AuthHandlerBase):
             scopes=["threads_basic", "threads_content_publish", "threads_manage_insights"], 
             app_id=settings.THREADS_APP_ID, 
             api_secret=settings.THREADS_APP_SECRET, 
-            redirect_uri=settings.THREADS_REDIRECT_URI
+            redirect_uri=f"{settings.API_PUBLIC_URL}{settings.THREADS_REDIRECT_URI}"
         )
         logger.info("✅ ThreadsAuthHandler initialized")
     
     async def authorize(self, request: Request):
-        """Command handler for /connect_threads"""
+        """Command handler for /connect"""
         params = dict(request.query_params)
         user_id = params.get('user_id')
         
@@ -36,7 +36,7 @@ class ThreadsAuthHandler(AuthHandlerBase):
         return {"url": auth_url}
     
     async def complete_authorization(self, request: Request):
-        """Command handler for /connect_threads"""
+        """Command handler for /callback"""
         params = dict(request.query_params)
     
         state_key = params.get('state')
@@ -44,9 +44,10 @@ class ThreadsAuthHandler(AuthHandlerBase):
 
         if not user_id:
             logger.error("Invalid state or user_id not found")
-            bot_url = f"https://t.me/{settings.TELEGRAM_BOTNAME}?command=connect_callback&auth_error_invalid_state"
+            # f"https://t.me/{settings.TELEGRAM_BOTNAME}?callback=auth_error_{user_id}"
+            bot_url = f"https://t.me/{settings.TELEGRAM_BOTNAME}?start=YOYOYO"
             return RedirectResponse(url=bot_url)
-
+        
         try:
             # Complete authorization
             logger.info(f"Processing authorization callback for user {user_id}")
@@ -70,9 +71,12 @@ class ThreadsAuthHandler(AuthHandlerBase):
             self.clear_state(user_id)
             
             # Redirect to Telegram bot with success parameter
+            bot_url = f"https://t.me/{settings.TELEGRAM_BOTNAME}?start=YOYOYO"
+            # return RedirectResponse(url=bot_url)
+            
             return HTMLResponse(
                 content=SUCCESS_PAGE_HTML.format(
-                    telegram_botname=settings.TELEGRAM_BOTNAME
+                    redirect_url=bot_url
                 ),
                 status_code=200
             )
@@ -81,7 +85,7 @@ class ThreadsAuthHandler(AuthHandlerBase):
             logger.error(f"Error during authorization: {str(e)}")
             return HTMLResponse(
                 content=SUCCESS_PAGE_HTML.format(
-                    telegram_botname=settings.TELEGRAM_BOTNAME
+                    redirect_url=f"https://t.me/{settings.TELEGRAM_BOTNAME}?start=YOYOYO"
                 ).replace(
                     "Successfully Connected!",
                     "Connection Failed"

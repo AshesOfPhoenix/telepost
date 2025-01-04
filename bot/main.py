@@ -1,7 +1,7 @@
 import httpx
 from bot.utils.config import get_settings
 from bot.utils.logger import logger
-from bot.utils.prompts import HELP_MESSAGE, START_MESSAGE, CONNECT_MESSAGE, RESTART_MESSAGE
+from bot.utils.prompts import HELP_MESSAGE, POST_SUCCESS_MESSAGE, START_MESSAGE, CONNECT_MESSAGE, RESTART_MESSAGE, ACCOUNT_INFO_MESSAGE, NO_ACCOUNT_MESSAGE
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LoginUrl
 from telegram.ext import (
     ContextTypes,
@@ -60,20 +60,21 @@ class TelegramBot:
             bot_response = await context.bot.get_me()
             api_response = await self.http_client.get(settings.API_BASE_URL + "/health")
             logger.info(f"API response: {api_response}")
-            await update.message.reply_text(f"Bot check passed: {bot_response}.\n\nBackend check passed: {api_response.json()}")
+            await update.message.reply_text(f"Bot check passed: {bot_response}.\n\nBackend check passed: {api_response.json()}", parse_mode='Markdown')
         except Exception as e:
             logger.error(f"Error during health check: {e}")
-            await update.message.reply_text("An error occurred during the health check. Please try again later.")
+            await update.message.reply_text("An error occurred during the health check. Please try again later.", parse_mode='Markdown')
         
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /start command and deep links"""
-        
-        
-        await update.message.reply_text(START_MESSAGE)
+        await update.message.reply_text(START_MESSAGE, parse_mode='Markdown')
+
+    async def unknown(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="Sorry, I didn't understand that command.", parse_mode='Markdown')
 
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await update.message.reply_text(HELP_MESSAGE)
+        await update.message.reply_text(HELP_MESSAGE, parse_mode='Markdown')
 
     async def get_user_account(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
@@ -85,13 +86,16 @@ class TelegramBot:
             account_data = response.json()
             
             if account_data.get("status") == "missing":
-                await update.message.reply_text(f"{account_data.get('message')}")
+                await update.message.reply_text(NO_ACCOUNT_MESSAGE, parse_mode='Markdown')
                 return
                 
             # Format the account data into a readable message
             logger.info(f"Account data: {account_data}")
             
-            message = f"**Threads Account Info**\nUsername: @{account_data.get('username')}\nBio:\n{account_data.get('biography', 'No bio')}"
+            message = ACCOUNT_INFO_MESSAGE.format(
+                username=account_data.get("username"),
+                bio=account_data.get("biography", "No bio")
+            )
             
             await update.message.reply_photo(
                 photo=account_data.get("profile_picture_url"),
@@ -101,7 +105,7 @@ class TelegramBot:
             
         except Exception as e:
             logger.error(f"Error in get_user_account: {str(e)}")
-            await update.message.reply_text("Sorry, there was an error getting your account information.")
+            await update.message.reply_text("Sorry, there was an error getting your account information.", parse_mode='Markdown')
 
     async def connect_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Sends a message with inline buttons for platform connection."""
@@ -152,7 +156,7 @@ class TelegramBot:
         ]
 
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(CONNECT_MESSAGE, reply_markup=reply_markup)
+        await update.message.reply_text(CONNECT_MESSAGE, reply_markup=reply_markup, parse_mode='Markdown')
 
     async def connect_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle button clicks from inline keyboard."""
@@ -280,10 +284,10 @@ class TelegramBot:
                             parse_mode='Markdown'
                         )
                     else:
-                        await update.message.reply_text("✅ Successfully connected your Threads account!")
+                        await update.message.reply_text("✅ Successfully connected your Threads account!", parse_mode='Markdown')
                 except Exception as e:
                     logger.error(f"Error fetching account info: {str(e)}")
-                    await update.message.reply_text("❌ Failed to connect your Threads account.")
+                    await update.message.reply_text("❌ Failed to connect your Threads account.", parse_mode='Markdown')
                 
                 # Clean up any previous connection messages
                 if 'last_connect_message_id' in context.user_data:
@@ -309,11 +313,11 @@ class TelegramBot:
                         "❌ Authentication session expired or invalid.\n"
                         "Please try again using the /connect command."
                     )
-                await update.message.reply_text(error_message)
+                await update.message.reply_text(error_message, parse_mode='Markdown')
                 return
 
     async def restart_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        await update.message.reply_text(RESTART_MESSAGE)
+        await update.message.reply_text(RESTART_MESSAGE, parse_mode='Markdown')
         
 
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -326,7 +330,7 @@ class TelegramBot:
         content, content_type = get_message_content(message)
 
         if content_type == "unknown":
-            await message.reply_text("Sorry, I can't process this type of message yet.")
+            await message.reply_text("Sorry, I can't process this type of message yet.", parse_mode='Markdown')
             return
 
         if content_type == "text":
@@ -351,31 +355,40 @@ class TelegramBot:
             
     async def post_thread(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Post a thread to Threads and read the query params
-        logger.info(f"Posting thread to Threads for user {update.message.from_user.id}")
-        logger.info(f"Message: {update.message}")
+        logger.info(f"Begin postting a message to Threads for user {update.message.from_user.id}")
         try:
             user_id = update.message.from_user.id
-            message = update.message.text.replace("/post ", "")
+            message = " ".join(context.args)
+            logger.info(f"Message: {message}")
             if update.message.photo:
                 image_url = update.message.photo[-1].file_id
             else:
                 image_url = None
+                
+            if message == "" or message == None:
+                await update.message.reply_text("❌ Please provide a message to post.", parse_mode='Markdown')
+                return
             
             response = await self.http_client.post(
                 f"{settings.API_BASE_URL}/threads/post",
                 params={"user_id": user_id, "message": message, "image_url": image_url},
                 timeout=30
             )
+            logger.info(f"Response: {response.json()}")
+            
+            thread_url = response.json().get("thread").get("permalink")
+            timestamp = response.json().get("thread").get("timestamp")
+            logger.info(f"Thread URL: {thread_url}")
             
             if response.json().get("status") == "success":
-                await update.message.reply_text("✅ Thread posted successfully!")
+                await update.message.reply_text(POST_SUCCESS_MESSAGE.format(post_url=thread_url, timestamp=timestamp, platform="Threads"), parse_mode='Markdown')
             elif response.json().get("status") == "missing":
-                await update.message.reply_text("❌ User not connected to Threads")
+                await update.message.reply_text("❌ User not connected to Threads", parse_mode='Markdown')
             else:
-                await update.message.reply_text("❌ Failed to post thread. Please try again.")
+                await update.message.reply_text("❌ Failed to post thread. Please try again.", parse_mode='Markdown')
         except Exception as e:
             logger.error(f"Error posting thread: {str(e)}")
-            await update.message.reply_text("❌ Failed to post thread. Please try again.")
+            await update.message.reply_text("❌ Failed to post thread. Please try again.", parse_mode='Markdown')
 
 
     # Bot Handlers
@@ -395,7 +408,7 @@ class TelegramBot:
             CallbackQueryHandler(self.connect_callback, pattern="^connect_")
         )
         self.application.add_handler(
-            CommandHandler("connect_callback", self.authorize_callback, filters=allowed_users_filter)
+            CommandHandler("callback", self.authorize_callback, filters=allowed_users_filter)
         )
         self.application.add_handler(
             CallbackQueryHandler(self.disconnect_callback, pattern="^disconnect_")
@@ -415,14 +428,9 @@ class TelegramBot:
         self.application.add_handler(
             MessageHandler(filters.ALL & allowed_users_filter, self.handle_message)
         )
-        
-    # API Calls
-    async def auth_threads(self):
-        response = await self.http_client.post(
-            self.api_base_url + "/auth/threads",
-            json={"username": "kikoems", "password": "123456"},
+        self.application.add_handler(
+            CommandHandler("unknown", self.unknown, filters=filters.COMMAND)
         )
-        return response.json()
 
 # Main
 async def start_bot():

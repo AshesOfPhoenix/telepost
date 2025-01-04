@@ -19,7 +19,7 @@ class ThreadsController(SocialController):
             scopes=["threads_basic", "threads_content_publish", "threads_manage_insights"], 
             app_id=settings.THREADS_APP_ID, 
             api_secret=settings.THREADS_APP_SECRET, 
-            redirect_uri=settings.THREADS_REDIRECT_URI
+            redirect_uri=f"{settings.API_PUBLIC_URL}{settings.THREADS_REDIRECT_URI}"
         )
         logger.info("✅ ThreadsController initialized")
         
@@ -69,9 +69,38 @@ class ThreadsController(SocialController):
             logger.info(f"Credentials: {threads_credentials}")
             
             async with API(credentials=threads_credentials) as api:
+                # Create a container
                 container_id = await api.create_container(message)
+                
+                # Check the container status
+                create_status = await api.container_status(container_id)
+                logger.info(f"Create Status: {create_status}")
+                
+                # state
+                create_state = create_status.status.value
+                logger.info(f"Create State: {create_state}")
+                
+                # Publish the container
                 result_id = await api.publish_container(container_id)
-                return {"status": "success", "message": "Thread posted successfully.", "result_id": result_id}
+                
+                # Check the container status
+                publish_status = await api.container_status(container_id)
+                logger.info(f"Publish Status: {publish_status}")
+                
+                publish_state = publish_status.status.value
+                logger.info(f"Publish State: {publish_state}")
+
+                if publish_state == "PUBLISHED":
+                    thread = await api.thread(result_id)
+                    logger.info(f"Thread: {thread}")
+                    return {
+                        "status": "success",
+                        "message": "Thread posted successfully.",
+                        "result_id": result_id,
+                        "thread": thread
+                    }
+                else:
+                    return {"status": "error", "message": f"Failed to publish thread. State: {publish_state}"}
             
         except Exception as e:
             logger.error(f"Error posting thread: {str(e)}")
