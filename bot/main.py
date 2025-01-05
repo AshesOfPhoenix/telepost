@@ -123,9 +123,13 @@ class TelegramBot:
                 params={"user_id": user_id}
             )
             twitter_account_data = twitter_response.json()
+            logger.info(f"Twitter account data: {twitter_account_data}")
             
             if twitter_account_data.get("status") == "missing":
                 raise Exception("User not connected to Twitter")
+            
+            if twitter_account_data.get("status") == "error":
+                raise Exception(twitter_account_data.get("message"))
             
             logger.info(f"Twitter account data: {twitter_account_data}")
             
@@ -162,10 +166,10 @@ class TelegramBot:
             )
             
         except Exception as e:
+            logger.error(f"Error in get_user_account: {str(e)}")
             if str(e) == "User not connected to Twitter":
                 await update.message.reply_text(NO_ACCOUNT_MESSAGE.format(platform="Twitter"), parse_mode='Markdown')
             else:
-                logger.error(f"Error in get_user_account: {str(e)}")
                 await update.message.reply_text("Sorry, there was an error getting your Twitter account information.", parse_mode='Markdown')
 
     async def connect_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -408,7 +412,7 @@ class TelegramBot:
         user = update.effective_user
         message_id = message.message_id
 
-        logger.info(f"User {user.username} ({user.id}) sent a message.")
+        logger.info(f"User {user.username} ({user.id}) sent a message with id {message_id} and content {message.text}.")
 
         content, content_type = get_message_content(message)
 

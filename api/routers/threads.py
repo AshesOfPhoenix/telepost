@@ -38,11 +38,17 @@ class ThreadsController(SocialController):
             logger.info(f"Credentials: {threads_credentials}")
             
             async with API(credentials=threads_credentials) as api:
-                account: ThreadsAccountResponse = await api.account()
+                account_response = await api.account()
+                logger.info(f"Account response: {account_response}")
+                
+                account = ThreadsAccountResponse.model_validate(account_response)
+                logger.info(f"Account: {account}")
                 # 'views', 'likes', 'replies', 'reposts', 'quotes', 'followers_count', 'follower_demographics'
-                insights: ThreadsInsightsResponse = await api.user_insights(
+                insights_response = await api.user_insights(
                     metrics=['views', 'likes', 'replies', 'reposts', 'quotes', 'followers_count'],
                 )
+                insights = ThreadsInsightsResponse.model_validate(insights_response)
+                
                 # Convert account data to a dictionary
                 logger.info(f"Account: {account}")
                 logger.info(f"Insights: {insights}")

@@ -13,7 +13,7 @@ async def handle_response(content, user, message_id, content_type) -> str:
     # route = router.route(content)
     # response = await route.invoker(content, config)
     # message = f"{route.name}:{response}"
-    return "response"
+    return content
 
 
 if __name__ == "__main__":

@@ -79,12 +79,21 @@ def get_settings() -> Settings:
 class ThreadsAccountResponse(BaseModel):
     id: str
     username: str
-    name: str
-    threads_profile_picture_url: str = Field(alias="profile_picture_url")
     threads_biography: str = Field(alias="biography")
+    threads_profile_picture_url: str = Field(alias="profile_picture_url")
+    name: Optional[str] = None  # Make name optional since it might not always be present
 
     class Config:
         populate_by_name = True
+        extra = "allow"
+        
+    @property
+    def biography(self) -> str:
+        return self.threads_biography
+
+    @property
+    def profile_picture_url(self) -> str:
+        return self.threads_profile_picture_url
     
     
 
@@ -109,6 +118,10 @@ class Paging(BaseModel):
 class ThreadsInsightsResponse(BaseModel):
     data: List[InsightMetric]
     paging: Paging
+    
+    class Config:
+        populate_by_name = True
+        extra = "allow"
 
     def get_metric_by_name(self, name: str) -> Optional[InsightMetric]:
         return next((metric for metric in self.data if metric.name == name), None)
@@ -175,6 +188,10 @@ class TwitterAccountData(BaseModel):
     public_metrics: PublicMetrics
     most_recent_tweet_id: Optional[str] = None
     entities: Entities
+    
+    class Config:
+        populate_by_name = True
+        extra = "allow"
 
 class TwitterAccountResponse(BaseModel):
     data: TwitterAccountData

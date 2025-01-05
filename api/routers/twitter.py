@@ -1,6 +1,7 @@
 # Threads Controller
 import aiohttp
 from datetime import datetime
+from api.utils.error import handle_twitter_error
 from api.utils.logger import logger
 from fastapi.routing import APIRoute
 from api.utils.config import TwitterAccountResponse, get_settings
@@ -47,7 +48,8 @@ class TwitterController(SocialController):
                 client_secret=settings.TWITTER_CLIENT_SECRET,
                 oauth_flow=True  # Keep OAuth flow enabled for user context
             )
-            
+            logger.info(f"My API user id: {my_api.auth_user_id}")
+                       
             account = my_api.get_me(
                 user_fields="created_at,description,entities,id,location,most_recent_tweet_id,name,pinned_tweet_id,profile_image_url,protected,public_metrics,url,username,verified,verified_type,withheld",
                 tweet_fields="created_at,id,text,public_metrics,entities,attachments,author_id,conversation_id,in_reply_to_user_id,referenced_tweets,source,withheld",
@@ -134,8 +136,9 @@ class TwitterController(SocialController):
                         logger.error(f"Error in Twitter API response: {data}")
                         return {"status": "error", "message": str(data)} """
         except Exception as e:
-            logger.error(f"Error getting user account: {str(e)}")
-            return {"status": "error", "message": str(e)}
+            error_response = handle_twitter_error(e)
+            logger.error(f"Twitter API Error: {error_response}")
+            return error_response
         
     async def post(self, request: Request):
         try:
@@ -169,8 +172,9 @@ class TwitterController(SocialController):
             return {"status": "success", "message": "Tweet posted successfully", "tweet": response_data}
             
         except Exception as e:
-            logger.error(f"Error posting tweet: {str(e)}")
-            return {"status": "error", "message": str(e)}
+            error_response = handle_twitter_error(e)
+            logger.error(f"Twitter API Error: {error_response}")
+            return error_response
     
     async def disconnect(self, user_id: int) -> bool:
         return await self.db.delete_user_twitter_credentials(user_id)
