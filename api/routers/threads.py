@@ -1,7 +1,7 @@
 # Threads Controller
 from api.utils.logger import logger
 from fastapi.routing import APIRoute
-from api.utils.config import get_settings
+from api.utils.config import ThreadsAccountResponse, ThreadsInsightsResponse, get_settings
 from fastapi import APIRouter, Depends, Request
 from pythreads.configuration import Configuration
 from pythreads.api import API
@@ -38,27 +38,25 @@ class ThreadsController(SocialController):
             logger.info(f"Credentials: {threads_credentials}")
             
             async with API(credentials=threads_credentials) as api:
-                account = await api.account()
+                account: ThreadsAccountResponse = await api.account()
                 # 'views', 'likes', 'replies', 'reposts', 'quotes', 'followers_count', 'follower_demographics'
-                insights: dict = await api.user_insights(
+                insights: ThreadsInsightsResponse = await api.user_insights(
                     metrics=['views', 'likes', 'replies', 'reposts', 'quotes', 'followers_count'],
                 )
                 # Convert account data to a dictionary
                 logger.info(f"Account: {account}")
                 logger.info(f"Insights: {insights}")
-                data = insights.get("data", [])
-                
-                likes = next((x.get("total_value", {}).get("value", 0) for x in data if x.get("name") == "likes"), 0)
-                replies = next((x.get("total_value", {}).get("value", 0) for x in data if x.get("name") == "replies"), 0)
-                reposts = next((x.get("total_value", {}).get("value", 0) for x in data if x.get("name") == "reposts"), 0)
-                quotes = next((x.get("total_value", {}).get("value", 0) for x in data if x.get("name") == "quotes"), 0)
-                followers_count = next((x.get("total_value", {}).get("value", 0) for x in data if x.get("name") == "followers_count"), 0)
+                likes = insights.get_total_likes()
+                replies = insights.get_total_replies()
+                reposts = insights.get_total_reposts()
+                quotes = insights.get_total_quotes()
+                followers_count = insights.get_total_followers()
                 
                 account_data = {
-                    "id": account.get("id"),
-                    "username": account.get("username"),
-                    "biography": account.get("threads_biography"),
-                    "profile_picture_url": account.get("threads_profile_picture_url"),
+                    "id": account.id,
+                    "username": account.username,
+                    "biography": account.threads_biography,
+                    "profile_picture_url": account.threads_profile_picture_url,
                     #"views": insights.get("views"),
                     "likes": likes,
                     "replies": replies,

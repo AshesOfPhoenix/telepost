@@ -1,7 +1,9 @@
 import os
-from pydantic import field_validator
+from pydantic import BaseModel, field_validator, Field
 from pydantic_settings import BaseSettings
-from typing import List
+from dataclasses import dataclass
+from typing import List, Optional, Dict, Union
+from datetime import datetime
 from functools import lru_cache
 
 class Settings(BaseSettings):
@@ -72,3 +74,128 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings() -> Settings:
     return Settings()
+
+# Thread Account Response Interface
+class ThreadsAccountResponse(BaseModel):
+    id: str
+    username: str
+    name: str
+    threads_profile_picture_url: str = Field(alias="profile_picture_url")
+    threads_biography: str = Field(alias="biography")
+
+    class Config:
+        populate_by_name = True
+    
+    
+
+# Threads Insights Response Interface
+class MetricValue(BaseModel):
+    value: int
+    end_time: Optional[str] = None
+
+class InsightMetric(BaseModel):
+    name: str
+    period: str
+    title: str
+    description: str
+    id: str
+    values: Optional[List[MetricValue]] = None
+    total_value: Optional[dict] = None
+
+class Paging(BaseModel):
+    previous: str
+    next: str
+
+class ThreadsInsightsResponse(BaseModel):
+    data: List[InsightMetric]
+    paging: Paging
+
+    def get_metric_by_name(self, name: str) -> Optional[InsightMetric]:
+        return next((metric for metric in self.data if metric.name == name), None)
+
+    def get_total_followers(self) -> int:
+        followers_metric = self.get_metric_by_name('followers_count')
+        return followers_metric.total_value.get('value', 0) if followers_metric else 0
+    
+    def get_total_likes(self) -> int:
+        likes_metric = self.get_metric_by_name('likes')
+        return likes_metric.total_value.get('value', 0) if likes_metric else 0
+    
+    def get_total_replies(self) -> int:
+        replies_metric = self.get_metric_by_name('replies')
+        return replies_metric.total_value.get('value', 0) if replies_metric else 0
+    
+    def get_total_reposts(self) -> int:
+        reposts_metric = self.get_metric_by_name('reposts')
+        return reposts_metric.total_value.get('value', 0) if reposts_metric else 0
+    
+    def get_total_quotes(self) -> int:
+        quotes_metric = self.get_metric_by_name('quotes')
+        return quotes_metric.total_value.get('value', 0) if quotes_metric else 0
+
+    def get_total_views(self) -> List[MetricValue]:
+        views_metric = self.get_metric_by_name('views')
+        return views_metric.values if views_metric else []
+    
+    
+    
+# Twitter Account Response Interface
+class PublicMetrics(BaseModel):
+    followers_count: int
+    following_count: int
+    tweet_count: int
+    listed_count: int
+    like_count: int
+    media_count: int
+
+class UrlEntity(BaseModel):
+    start: int
+    end: int
+    url: str
+    expanded_url: str
+    display_url: str
+
+class DescriptionEntities(BaseModel):
+    urls: list[UrlEntity]
+
+class Entities(BaseModel):
+    description: DescriptionEntities
+
+class TwitterAccountData(BaseModel):
+    id: str
+    username: str
+    name: str
+    description: str
+    profile_image_url: str
+    verified: bool
+    verified_type: str
+    location: str
+    created_at: str
+    protected: bool
+    public_metrics: PublicMetrics
+    most_recent_tweet_id: Optional[str] = None
+    entities: Entities
+
+class TwitterAccountResponse(BaseModel):
+    data: TwitterAccountData
+
+    # Helper methods to easily access nested data
+    @property
+    def followers_count(self) -> int:
+        return self.data.public_metrics.followers_count
+
+    @property
+    def following_count(self) -> int:
+        return self.data.public_metrics.following_count
+
+    @property
+    def tweet_count(self) -> int:
+        return self.data.public_metrics.tweet_count
+
+    @property
+    def profile_picture_url(self) -> str:
+        return self.data.profile_image_url
+
+    @property
+    def biography(self) -> str:
+        return self.data.description

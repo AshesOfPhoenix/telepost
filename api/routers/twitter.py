@@ -2,7 +2,7 @@
 import aiohttp
 from api.utils.logger import logger
 from fastapi.routing import APIRoute
-from api.utils.config import get_settings
+from api.utils.config import TwitterAccountResponse, get_settings
 from fastapi import APIRouter, Depends, Request
 from pytwitter import Api
 
@@ -47,8 +47,6 @@ class TwitterController(SocialController):
                 oauth_flow=True  # Keep OAuth flow enabled for user context
             )
             
-            # Don't include client_id and client_secret here - they're only needed for the initial OAuth flow
-            
             account = my_api.get_me(
                 user_fields="created_at,description,entities,id,location,most_recent_tweet_id,name,pinned_tweet_id,profile_image_url,protected,public_metrics,url,username,verified,verified_type,withheld",
                 tweet_fields="created_at,id,text,public_metrics,entities,attachments,author_id,conversation_id,in_reply_to_user_id,referenced_tweets,source,withheld",
@@ -57,38 +55,37 @@ class TwitterController(SocialController):
             )
             logger.info(f"Account with my_api: {account}")
             
-            data = account.get("data")
-            created_at = " ".join(data.get("created_at").replace(".000Z", "").split("T"))
+            account = TwitterAccountResponse.model_validate(account)
+            logger.info(f"Account with model_validate: {account}")
+            account_data = account.data
             
-            if "data" in account:
-                user_data = account["data"]
-                public_metrics = user_data.get("public_metrics", {})
-                account_data = {
-                    "platform": "twitter",
-                    "username": user_data.get("username"),
-                    "name": user_data.get("name"),
-                    "biography": user_data.get("description"),
-                    "profile_picture_url": user_data.get("profile_image_url"),
-                    "id": user_data.get("id"),
-                    # Added fields
-                    "verified": user_data.get("verified"),
-                    "verified_type": user_data.get("verified_type"),
-                    "location": user_data.get("location"),
-                    "created_at": created_at,
-                    "protected": user_data.get("protected"),
-                    "metrics": {
-                        "followers_count": public_metrics.get("followers_count"),
-                        "following_count": public_metrics.get("following_count"),
-                        "tweet_count": public_metrics.get("tweet_count"),
-                        "listed_count": public_metrics.get("listed_count"),
-                        "like_count": public_metrics.get("like_count"),
-                        "media_count": public_metrics.get("media_count")
-                    }
+            created_at = " ".join(account_data.created_at.replace(".000Z", "").split("T"))
+            
+            public_metrics = account_data.public_metrics
+            account_data = {
+                "platform": "twitter",
+                "username": account_data.username,
+                "name": account_data.name,
+                "biography": account_data.description,
+                "profile_picture_url": account_data.profile_image_url,
+                "id": account_data.id,
+                # Added fields
+                "verified": account_data.verified,
+                "verified_type": account_data.verified_type,
+                "location": account_data.location,
+                "created_at": created_at,
+                "protected": account_data.protected,
+                "metrics": {
+                    "followers_count": public_metrics.followers_count,
+                    "following_count": public_metrics.following_count,
+                    "tweet_count": public_metrics.tweet_count,
+                    "listed_count": public_metrics.listed_count,
+                    "like_count": public_metrics.like_count,
+                    "media_count": public_metrics.media_count
                 }
-                return account_data
-            else:
-                logger.error(f"Error in Twitter API response: {account}")
-                return {"status": "error", "message": str(account)}
+            }
+            return account_data
+            
             
             """ async with aiohttp.ClientSession() as session:
                 headers = {
