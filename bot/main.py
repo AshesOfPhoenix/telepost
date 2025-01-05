@@ -436,28 +436,28 @@ class TelegramBot:
         else:
             await message.reply_markdown(response)
             
-    async def post_thread(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+    async def post(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Post a thread to Threads and read the query params
         logger.info(f"Begin postting a message to Threads for user {update.message.from_user.id}")
+        user_id = update.message.from_user.id
+        message = " ".join(context.args) # Get the message from the command args - Does not correctly handle spaces and new lines
+        message = update.message.text_markdown.replace("/post", "") # Get the message from the command text
+        
+        message = message.strip()
+        is_message_empty = len(message) == 0 or message == None
+        
+        if len(update.message.photo) > 0:
+            image_url = update.message.photo
+        else:
+            image_url = None
+            
+        logger.info(f"Message: {message} - Message Empty: {is_message_empty} - Message Length: {len(message)}. Photo: {update.message.photo} - {image_url}")
+            
+        if is_message_empty and not image_url:
+            await update.message.reply_text("❌ Please provide an text or image to post.", parse_mode='Markdown')
+            return
+        
         try:
-            user_id = update.message.from_user.id
-            message = " ".join(context.args) # Get the message from the command args - Does not correctly handle spaces and new lines
-            message = update.message.text_markdown.replace("/post", "") # Get the message from the command text
-            
-            message = message.strip()
-            is_message_empty = len(message) == 0 or message == None
-            
-            if len(update.message.photo) > 0:
-                image_url = update.message.photo
-            else:
-                image_url = None
-                
-            logger.info(f"Message: {message} - Message Empty: {is_message_empty} - Message Length: {len(message)}. Photo: {update.message.photo} - {image_url}")
-                
-            if is_message_empty and not image_url:
-                await update.message.reply_text("❌ Please provide an text or image to post.", parse_mode='Markdown')
-                return
-            
             response = await self.http_client.post(
                 f"{settings.API_BASE_URL}/threads/post",
                 params={"user_id": user_id, "message": message, "image_url": image_url},
@@ -465,20 +465,51 @@ class TelegramBot:
             )
             logger.info(f"Response: {response.json()}")
             
-            thread_url = response.json().get("thread").get("permalink")
-            # Parse 2025-01-04T11:39:58+0000 to 2025-01-04 11:39:58
-            timestamp = response.json().get("thread").get("timestamp").replace("T", " ").replace("+0000", "")
-            logger.info(f"Thread URL: {thread_url}")
-            
             if response.json().get("status") == "success":
-                await update.message.reply_text(POST_SUCCESS_MESSAGE.format(post_url=thread_url, timestamp=timestamp, platform="Threads"), parse_mode='Markdown')
+                thread_url = response.json().get("thread").get("permalink")
+                # Parse 2025-01-04T11:39:58+0000 to 2025-01-04 11:39:58
+                thread_timestamp = response.json().get("thread").get("timestamp").replace("T", " ").replace("+0000", "")
+                logger.info(f"Thread URL: {thread_url}")
+                
+                success_message = POST_SUCCESS_MESSAGE.format(post_url=thread_url, timestamp=thread_timestamp, platform="Threads")
+                await update.message.reply_text(success_message, parse_mode='Markdown')
             elif response.json().get("status") == "missing":
                 await update.message.reply_text("❌ User not connected to Threads", parse_mode='Markdown')
             else:
-                await update.message.reply_text("❌ Failed to post thread. Please try again.", parse_mode='Markdown')
+                await update.message.reply_text("❌ Failed to post a thread. Please try again.", parse_mode='Markdown')
+                
         except Exception as e:
             logger.error(f"Error posting thread: {str(e)}")
-            await update.message.reply_text("❌ Failed to post thread. Please try again.", parse_mode='Markdown')
+            await update.message.reply_text("❌ Failed to post a thread. Please try again.", parse_mode='Markdown')
+            
+        logger.info(f"Begin postting a message to Twitter for user {update.message.from_user.id}")
+        try:
+            response = await self.http_client.post(
+                f"{settings.API_BASE_URL}/twitter/post",
+                params={"user_id": user_id, "message": message, "image_url": image_url},
+                timeout=30
+            )
+            
+            if response.json().get("status") == "success":
+                # {'edit_history_tweet_ids': ['1875842406307737626'], 'id': '1875842406307737626', 'text': 'yolo'}
+                logger.info(f"Response: {response.json()}")
+                
+                tweet = response.json().get("tweet")
+                tweet_id = tweet.get("id")
+                tweet_text = tweet.get("text")
+                tweet_url = tweet.get("permalink")
+                tweet_timestamp = tweet.get("timestamp")
+                
+                success_message = POST_SUCCESS_MESSAGE.format(post_url=tweet_url, timestamp=tweet_timestamp, platform="Twitter")
+                await update.message.reply_text(success_message, parse_mode='Markdown')
+            elif response.json().get("status") == "missing":
+                await update.message.reply_text("❌ User not connected to Twitter", parse_mode='Markdown')
+            else:
+                await update.message.reply_text("❌ Failed to post a tweet. Please try again.", parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"Error posting tweet: {str(e)}")
+            await update.message.reply_text("❌ Failed to post a tweet. Please try again.", parse_mode='Markdown')
 
 
     # Bot Handlers
@@ -513,7 +544,7 @@ class TelegramBot:
             CommandHandler("health", self.health_check, filters=allowed_users_filter)
         )
         self.application.add_handler(
-            CommandHandler("post", self.post_thread, filters=allowed_users_filter)
+            CommandHandler("post", self.post, filters=allowed_users_filter)
         )
         self.application.add_handler(
             MessageHandler(filters.ALL & allowed_users_filter, self.handle_message)

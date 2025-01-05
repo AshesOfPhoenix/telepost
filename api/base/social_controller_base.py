@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
+
+from fastapi import Request
 from api.db.database import db
 
 class SocialController(ABC):
@@ -39,7 +41,7 @@ class SocialController(ABC):
         pass
     
     @abstractmethod
-    async def post_thread(self, user_id: int, thread: str) -> bool:
+    async def post(self, request: Request) -> Dict[str, Any]:
         """
         Post a thread to the social media platform.
         
@@ -48,6 +50,6 @@ class SocialController(ABC):
             thread: The content to be posted
             
         Returns:
-            bool: True if posted successfully, False otherwise
+            Dict containing the post details
         """
         pass

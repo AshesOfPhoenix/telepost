@@ -131,7 +131,7 @@ Please try again or use /help for assistance.
 """
 
 POST_SUCCESS_MESSAGE = """
-✅ *Post Successfully Shared!*
+✅ *Post Successfully Shared on {platform}!*
 
 View your post: [Click here]({post_url})
 

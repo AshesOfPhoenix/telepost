@@ -1,5 +1,6 @@
 # Threads Controller
 import aiohttp
+from datetime import datetime
 from api.utils.logger import logger
 from fastapi.routing import APIRoute
 from api.utils.config import TwitterAccountResponse, get_settings
@@ -136,12 +137,39 @@ class TwitterController(SocialController):
             logger.error(f"Error getting user account: {str(e)}")
             return {"status": "error", "message": str(e)}
         
-    async def post_thread(self, request: Request):
+    async def post(self, request: Request):
         try:
-            pass
+            params = dict(request.query_params)
+            user_id = params.get('user_id')
+            message = params.get('message')
+            image_url = params.get('image_url')
+            
+            credentials = await self.get_user_credentials(user_id)
+            if not credentials:
+                return {"status": "missing", "message": "❌ User not connected to Twitter"}
+            
+            my_api = Api(
+                bearer_token=credentials.get("access_token"),  # Just pass the access token directly
+                client_id=settings.TWITTER_CLIENT_ID,
+                client_secret=settings.TWITTER_CLIENT_SECRET,
+                oauth_flow=True  # Keep OAuth flow enabled for user context
+            )
+            
+            response = my_api.create_tweet(
+                text=message,
+                return_json=True
+            )
+            # {'data': {'edit_history_tweet_ids': ['1875842406307737626'], 'id': '1875842406307737626', 'text': 'yolo'}}
+            logger.info(f"Response: {response}")
+            
+            response_data = response.get("data")
+            
+            response_data["permalink"] = f"https://x.com/{user_id}/status/{response_data.get('id')}"
+            response_data["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            return {"status": "success", "message": "Tweet posted successfully", "tweet": response_data}
             
         except Exception as e:
-            logger.error(f"Error posting thread: {str(e)}")
+            logger.error(f"Error posting tweet: {str(e)}")
             return {"status": "error", "message": str(e)}
     
     async def disconnect(self, user_id: int) -> bool:
@@ -160,9 +188,9 @@ routes = [
     ),
     APIRoute(
         path="/post",
-        endpoint=twitter_controller.post_thread,
+        endpoint=twitter_controller.post,
         methods=["POST"],
-        name="post_thread"
+        name="post_tweet"
     )
 ]
 

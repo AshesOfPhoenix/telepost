@@ -71,7 +71,7 @@ class ThreadsController(SocialController):
             logger.error(f"Error getting user account: {str(e)}")
             return {"status": "error", "message": str(e)}
         
-    async def post_thread(self, request: Request):
+    async def post(self, request: Request):
         try:
             params = dict(request.query_params)
             user_id = params.get('user_id')
@@ -137,7 +137,7 @@ routes = [
     ),
     APIRoute(
         path="/post",
-        endpoint=threads_controller.post_thread,
+        endpoint=threads_controller.post,
         methods=["POST"],
         name="post_thread"
     )
