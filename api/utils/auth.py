@@ -14,7 +14,10 @@ api_key_header = APIKeyHeader(name=settings.API_KEY_HEADER_NAME, auto_error=Fals
 PUBLIC_PATHS = {
     "/auth/threads/callback",
     "/auth/twitter/callback",
-    "/health"
+    "/health",
+    "/docs",
+    "/redoc",
+    "/openapi.json"
 }
 
 # API key verification function
@@ -31,5 +34,12 @@ def verify_api_key(
         return None
     
     # If the API key is not present or does not match the settings API key, raise an HTTPException
-    if not api_key or api_key != settings.API_KEY:
-        raise HTTPException(status_code=403, detail="Invalid API key")
+    if not request.headers.get("host") or request.headers["host"] != settings.ALLOWED_HOSTS:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "Invalid Host Header",
+                "status": "unauthorized",
+                "message": "The provided Host header is either missing or invalid. Please ensure you are accessing the API from an allowed host."
+            }
+        )
