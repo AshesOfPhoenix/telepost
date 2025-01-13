@@ -8,8 +8,6 @@ bs4==0.0.2
 tiktoken==0.7.0
 chromadb==0.5.11
 langchain-chroma==0.1.4
-langchain-ollama==0.2.0
-ollama==0.3.3
 llm-adaptive-router==0.1.13
 langchain-anthropic==0.2.3
 psycopg2-binary==2.9.10
@@ -17,8 +15,6 @@ pythreads==0.2.1
 python-twitter-v2==0.9.2
 python-multipart
 markdown
-colorama
-beautifulsoup4
 colorama
 requests
 jinja2
