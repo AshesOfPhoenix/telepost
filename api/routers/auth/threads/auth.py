@@ -138,25 +138,37 @@ routes = [
         path="/connect",
         endpoint=auth_handler.authorize,
         methods=["GET"],
-        name="authorize"
+        name="authorize",
+        summary="Authorize user",
+        description="Authorize user to connect to Threads",
+        tags=["threads", "auth"]
     ),
     APIRoute(
         path="/callback",
         endpoint=auth_handler.complete_authorization,
         methods=["GET"],
-        name="callback"
+        name="callback",
+        summary="Complete authorization",
+        description="Complete authorization for Threads",
+        tags=["threads", "auth"]
     ),
     APIRoute(
         path="/disconnect",
         endpoint=auth_handler.disconnect,
         methods=["POST"],
-        name="disconnect"
+        name="disconnect",
+        summary="Disconnect from Threads",
+        description="Disconnect from Threads",
+        tags=["threads", "auth"]
     ),
     APIRoute(
         path="/is_connected",
         endpoint=auth_handler.is_connected,
         methods=["GET"],
-        name="is_connected"
+        name="is_connected",
+        summary="Check if user is connected to Threads",
+        description="Check if user is connected to Threads",
+        tags=["threads", "auth"]
     )
 ]
 

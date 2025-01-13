@@ -10,12 +10,45 @@ from api.routers.twitter import router as twitter_router
 from api.routers.auth.twitter.auth import router as twitter_auth_router
 from api.utils.logger import logger
 from api.utils.auth import verify_api_key
+from fastapi.staticfiles import StaticFiles
+from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
+from api.utils.docs import custom_openapi
 
 settings = get_settings()
 
 logger.info("Initializing API...")
 
-app = FastAPI(dependencies=[Depends(verify_api_key)])
+app = FastAPI(
+    title="Telepost API",
+    description="API for managing social media posts across platforms",
+    version="1.0.0",
+    dependencies=[Depends(verify_api_key)]
+)
+
+# Custom OpenAPI schema
+app.openapi = lambda: custom_openapi(app)
+
+# Mount static files for docs
+app.mount("/static", StaticFiles(directory="api/static"), name="static")
+
+# Custom documentation endpoints
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    return get_swagger_ui_html(
+        openapi_url="/openapi.json",
+        title="Telepost API Documentation",
+        oauth2_redirect_url="/docs/oauth2-redirect",
+        swagger_js_url="/static/swagger-ui-bundle.js",
+        swagger_css_url="/static/swagger-ui.css",
+    )
+
+@app.get("/redoc", include_in_schema=False)
+async def redoc_html():
+    return get_redoc_html(
+        openapi_url="/openapi.json",
+        title="Telepost API Documentation",
+        redoc_js_url="/static/redoc.standalone.js",
+    )
 
 logger.info("✓ API created")
 

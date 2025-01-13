@@ -188,13 +188,19 @@ routes = [
         path="/user_account",
         endpoint=twitter_controller.get_user_account,
         methods=["GET"],
-        name="get_user_account"
+        name="get_user_account",
+        summary="Get user account",
+        description="Get user account details from Twitter",
+        tags=["twitter"]
     ),
     APIRoute(
         path="/post",
         endpoint=twitter_controller.post,
         methods=["POST"],
-        name="post_tweet"
+        name="post_tweet",
+        summary="Post a tweet",
+        description="Post a tweet to Twitter",
+        tags=["twitter"]
     )
 ]
 

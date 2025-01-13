@@ -139,13 +139,19 @@ routes = [
         path="/user_account",
         endpoint=threads_controller.get_user_account,
         methods=["GET"],
-        name="get_user_account"
+        name="get_user_account",
+        summary="Get user account",
+        description="Get user account details from Threads",
+        tags=["threads"]
     ),
     APIRoute(
         path="/post",
         endpoint=threads_controller.post,
         methods=["POST"],
-        name="post_thread"
+        name="post_thread",
+        summary="Post a thread",
+        description="Post a thread to Threads",
+        tags=["threads"]
     )
 ]
 

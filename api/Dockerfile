@@ -10,14 +10,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
-COPY api/requirements.txt ./requirements.txt
+COPY ./api/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY api/ ./api/
-
-# Copy certs
-COPY certs/ ./certs/
+COPY ./api/ ./api
 
 # Set environment variables
 ENV PYTHONPATH=/app
