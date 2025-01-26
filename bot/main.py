@@ -119,6 +119,9 @@ class TelegramBot:
             
             if threads_account_data.get("status") == "missing":
                 raise Exception("User not connected to Threads")
+            
+            if threads_account_data.get("status") == "error":
+                raise Exception(threads_account_data.get("message"))
                 
             # Format the account data into a readable message
             logger.info(f"Threads account data: {threads_account_data}")
