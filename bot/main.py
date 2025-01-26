@@ -44,7 +44,7 @@ class TelegramBot:
         self.api_base_url = settings.API_BASE_URL
         self.http_client = httpx.AsyncClient(
             headers={
-                settings.API_KEY_HEADER_NAME: settings.API_KEY,
+                settings.API_KEY_HEADER_NAME.strip('"'): settings.API_KEY,
                 "User-Agent": "TelegramBot/1.0"
             },
             timeout=30,
