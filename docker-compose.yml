@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   api:
     build: 
@@ -11,6 +9,7 @@ services:
       - API_KEY=${API_KEY}
       - API_PUBLIC_URL=${API_PUBLIC_URL}
       - ALLOWED_HOSTS=${ALLOWED_HOSTS}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - THREADS_API_SECRET=${THREADS_API_SECRET}

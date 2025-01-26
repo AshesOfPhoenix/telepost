@@ -1,5 +1,6 @@
 # Threads Auth Controller
-from fastapi.responses import HTMLResponse, RedirectResponse, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import HTTPException
 from api.utils.logger import logger
 from fastapi.routing import APIRoute
 from pydantic import BaseModel

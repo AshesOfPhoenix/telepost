@@ -1,8 +1,11 @@
 from asyncio.log import logger
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Request, status
 from fastapi.params import Security
 from fastapi.security.api_key import APIKeyHeader
 from api.utils.config import get_settings
+import logging
+
+logger = logging.getLogger("api")
 
 settings = get_settings()
 
@@ -26,20 +29,42 @@ PUBLIC_PATHS = {
 def verify_api_key(
     request: Request, 
     api_key: str = Security(api_key_header)
-):
-    logger.info(f"Verifying API key for request: {request}")
+) -> None:
+    """
+    Verify API key for protected endpoints.
+    Skips verification for public paths.
+    Raises HTTPException if API key is invalid.
+    """
+    # Log request details for debugging
+    logger.debug(f"Verifying request to: {request.url.path}")
     
-    # If the request path is in the PUBLIC_PATHS set, return None
+    # Skip API key verification for public paths
     if request.url.path in PUBLIC_PATHS:
         return None
-    
-    # If the API key is not present or does not match the settings API key, raise an HTTPException
-    if not request.headers.get("Host") or request.headers["Host"] not in settings.ALLOWED_HOSTS:
+        
+    # Validate API key presence
+    if not api_key:
+        logger.warning("Missing API key in request")
         raise HTTPException(
-            status_code=403,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail={
-                "error": "Invalid Host Header",
+                "error": "Missing API Key",
                 "status": "unauthorized",
-                "message": f"The provided Host header {request.headers['Host']} is either missing or invalid. Please ensure you are accessing the API from an allowed host."
+                "message": f"Please provide an API key using the {settings.API_KEY_HEADER_NAME} header"
             }
         )
+    
+    # Validate API key value
+    if api_key != settings.API_KEY:
+        logger.warning("Invalid API key provided")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "Invalid API Key",
+                "status": "forbidden",
+                "message": "The provided API key is invalid"
+            }
+        )
+    
+    logger.debug("API key verification successful")
+    return None

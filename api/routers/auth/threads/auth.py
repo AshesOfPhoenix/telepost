@@ -1,5 +1,6 @@
 # Threads Auth Controller
-from fastapi.responses import RedirectResponse, HTMLResponse, HTTPException
+from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi import HTTPException
 from api.utils.logger import logger
 from fastapi.routing import APIRoute
 from fastapi import APIRouter, Request

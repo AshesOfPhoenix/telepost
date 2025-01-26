@@ -1,5 +1,5 @@
 # API Main
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from pydantic import BaseModel
@@ -59,21 +59,12 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
 
 logger.info("✓ CORS middleware added")
-
-logger.info(f"Setting up TrustedHostMiddleware with allowed hosts: {settings.ALLOWED_HOSTS}")
-
-app.add_middleware(
-    TrustedHostMiddleware,
-    allowed_hosts=settings.ALLOWED_HOSTS,
-)
-
-logger.info("✓ Trusted host middleware added")
 
 @app.get("/")
 def read_root():
