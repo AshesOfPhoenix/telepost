@@ -6,7 +6,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # API Settings
-    API_BASE_URL: str
+    API_PUBLIC_URL: str
     API_VERSION: str = "v1"
     API_PREFIX: str = f"/api/{API_VERSION}"
     DEBUG: bool = False
