@@ -111,7 +111,6 @@ app.add_middleware(
 
 logger.info("✓ CORS middleware added")
 
-
 @app.get("/")
 def read_root():
     return {"message": "Hello, World!"}
