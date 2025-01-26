@@ -93,14 +93,22 @@ class AuthHandlerBase(ABC):
         Returns:
             bool indicating if user is connected
         """
-        credentials = await self.get_user_credentials(user_id)
-        return credentials is not None
+        try:
+            credentials = await self.get_user_credentials(user_id)
+            return credentials is not None
+        except Exception as e:
+            logger.error(f"Error getting user credentials: {e}")
+            return False
     
     def get_state_from_user_id(self, user_id: int) -> Dict[str, Any]:
         """
         Get state from user_id
         """
-        return self.states.get(user_id, {})
+        try:
+            return self.states.get(user_id, {})
+        except Exception as e:
+            logger.error(f"Error getting state from user_id: {e}")
+            return {}
     
     def get_user_id_from_state(self, state: str) -> Optional[str]:
         """
@@ -112,12 +120,16 @@ class AuthHandlerBase(ABC):
         Returns:
             user_id if found, None otherwise
         """
-        logger.info(f"Getting user_id from state: {state}")
-        for uid, stored_state in self.states.items():
-            if stored_state.get("state") == state:
-                logger.info(f"Found user_id {uid} for state {state}")
-                return uid
-        return None
+        try:
+            logger.info(f"Getting user_id from state: {state}")
+            for uid, stored_state in self.states.items():
+                if stored_state.get("state") == state:
+                    logger.info(f"Found user_id {uid} for state {state}")
+                    return uid
+            return None
+        except Exception as e:
+            logger.error(f"Error getting user_id from state: {e}")
+            return None
     
     def get_code_verifier_from_state(self, state: str) -> Optional[str]:
         """
@@ -129,12 +141,16 @@ class AuthHandlerBase(ABC):
         Returns:
             code_verifier if found, None otherwise
         """
-        logger.info(f"Getting code_verifier from state: {state}")
-        for uid, stored_state in self.states.items():
-            if stored_state.get("state") == state:
-                logger.info(f"Found user_id {uid} for state {state}")
-                return stored_state.get("code_verifier")
-        return None
+        try:
+            logger.info(f"Getting code_verifier from state: {state}")
+            for uid, stored_state in self.states.items():
+                if stored_state.get("state") == state:
+                    logger.info(f"Found user_id {uid} for state {state}")
+                    return stored_state.get("code_verifier")
+            return None
+        except Exception as e:
+            logger.error(f"Error getting code_verifier from state: {e}")
+            return None
     
     def store_state(self, user_id: str, state: str, code_verifier: str | None = None) -> None:
         """
@@ -145,18 +161,25 @@ class AuthHandlerBase(ABC):
             state: OAuth state parameter
             code_verifier: OAuth code verifier parameter
         """
-        logger.info(f"Storing state for user {user_id}: {state}")
-        self.states[user_id] = {
-            "state": state,
-            "code_verifier": code_verifier
-        }
-        
+        try:
+            logger.info(f"Storing state for user {user_id}: {state}")
+            self.states[user_id] = {
+                "state": state,
+                "code_verifier": code_verifier
+            }
+        except Exception as e:
+            logger.error(f"Error storing state: {e}")
+
     def get_all_states(self) -> Dict[str, Dict[str, str]]:
         """
         Get all stored states
         """
-        return self.states
-    
+        try:
+            return self.states
+        except Exception as e:
+            logger.error(f"Error getting all states: {e}")
+            return {}
+
     def clear_state(self, user_id: str) -> None:
         """
         Clear stored state for a user
@@ -181,10 +204,14 @@ class AuthHandlerBase(ABC):
         Returns:
             Dict[str, Any]: Response containing status of the operation
         """
-        params = dict(request.query_params)
-        user_id = params.get('user_id')
-        
-        self.clear_state(user_id)
-        
-        await self.db.delete_user_credentials(user_id, self.provider_id)
-        return {"status": "ok"}
+        try:
+            params = dict(request.query_params)
+            user_id = params.get('user_id')
+            
+            self.clear_state(user_id)
+            
+            await self.db.delete_user_credentials(user_id, self.provider_id)
+            return {"status": "ok"}
+        except Exception as e:
+            logger.error(f"Error disconnecting user: {e}")
+            return {"status": "error", "message": str(e)}

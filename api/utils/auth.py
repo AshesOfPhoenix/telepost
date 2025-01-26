@@ -9,7 +9,7 @@ settings = get_settings()
 # API key header instance
 # auto_error=False means that the API key is not required
 # Returns the value of the API key if it is present, otherwise returns None
-api_key_header = APIKeyHeader(name=settings.API_KEY_HEADER_NAME, auto_error=False)
+api_key_header = APIKeyHeader(name=settings.API_KEY_HEADER_NAME.strip('"'), auto_error=False)
 
 PUBLIC_PATHS = {
     "/auth/threads/callback",
