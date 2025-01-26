@@ -34,12 +34,12 @@ def verify_api_key(
         return None
     
     # If the API key is not present or does not match the settings API key, raise an HTTPException
-    if not request.headers.get("host") or request.headers["host"] not in settings.ALLOWED_HOSTS:
+    if not request.headers.get("Host") or request.headers["Host"] not in settings.ALLOWED_HOSTS:
         raise HTTPException(
             status_code=403,
             detail={
                 "error": "Invalid Host Header",
                 "status": "unauthorized",
-                "message": f"The provided Host header {request.headers['host']} is either missing or invalid. Please ensure you are accessing the API from an allowed host."
+                "message": f"The provided Host header {request.headers['Host']} is either missing or invalid. Please ensure you are accessing the API from an allowed host."
             }
         )
