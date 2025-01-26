@@ -41,7 +41,7 @@ class TelegramBot:
     def __init__(self):
         logger.info("Starting up bot...")
         self.application = ApplicationBuilder().token(settings.TELEGRAM_TOKEN).build()
-        self.api_base_url = settings.API_BASE_URL
+        self.API_PUBLIC_URL = settings.API_PUBLIC_URL
         self.http_client = httpx.AsyncClient(
             headers={
                 settings.API_KEY_HEADER_NAME.strip('"'): settings.API_KEY,
@@ -58,7 +58,7 @@ class TelegramBot:
         logger.info(update)
         try:
             bot_response = await context.bot.get_me()
-            api_response = await self.http_client.get(settings.API_BASE_URL + "/health")
+            api_response = await self.http_client.get(settings.API_PUBLIC_URL + "/health")
             logger.info(f"API response: {api_response}")
             await update.message.reply_text(f"Bot check passed: {bot_response}.\n\nBackend check passed: {api_response.json()}", parse_mode='Markdown')
         except Exception as e:
@@ -90,7 +90,7 @@ class TelegramBot:
             
             # Get Threads account data
             threads_response = await self.http_client.get(
-                f"{settings.API_BASE_URL}/threads/user_account",
+                f"{settings.API_PUBLIC_URL}/threads/user_account",
                 params={"user_id": user_id}
             )
             threads_account_data = threads_response.json()
@@ -127,7 +127,7 @@ class TelegramBot:
         try:
             # Get Twitter account data
             twitter_response = await self.http_client.get(
-                f"{settings.API_BASE_URL}/twitter/user_account",
+                f"{settings.API_PUBLIC_URL}/twitter/user_account",
                 params={"user_id": user_id}
             )
             twitter_account_data = twitter_response.json()
@@ -194,14 +194,14 @@ class TelegramBot:
         twitter_auth_url = None
         
         try:
-            threads_response = await self.http_client.get(settings.API_BASE_URL + "/auth/threads/is_connected", params={"user_id": user_id})
+            threads_response = await self.http_client.get(settings.API_PUBLIC_URL + "/auth/threads/is_connected", params={"user_id": user_id})
             logger.info(f"Threads response status: {threads_response.status_code}")
             logger.info(f"Threads response text: {threads_response.text}")
             threads_response.raise_for_status()
             logger.info(f"Is threads connected: {threads_response.json()}")
             is_threads_connected = threads_response.json()
             
-            twitter_response = await self.http_client.get(settings.API_BASE_URL + "/auth/twitter/is_connected", params={"user_id": user_id})
+            twitter_response = await self.http_client.get(settings.API_PUBLIC_URL + "/auth/twitter/is_connected", params={"user_id": user_id})
             logger.info(f"Twitter response status: {twitter_response.status_code}")
             logger.info(f"Twitter response text: {twitter_response.text}")
             twitter_response.raise_for_status()
@@ -209,19 +209,19 @@ class TelegramBot:
             is_twitter_connected = twitter_response.json()
             
             if not is_threads_connected:
-                threads_auth_url = await self.http_client.get(settings.API_BASE_URL + "/auth/threads/connect", params={"user_id": user_id})
+                threads_auth_url = await self.http_client.get(settings.API_PUBLIC_URL + "/auth/threads/connect", params={"user_id": user_id})
                 if threads_auth_url.json().get("url"):
                     context.user_data[f'threads_auth_url_{user_id}'] = threads_auth_url.json().get("url")
             else:
-                threads_auth_url = f"{settings.API_BASE_URL}/auth/threads/disconnect?user_id={user_id}"
+                threads_auth_url = f"{settings.API_PUBLIC_URL}/auth/threads/disconnect?user_id={user_id}"
                 context.user_data[f'threads_auth_url_{user_id}'] = threads_auth_url
 
             if not is_twitter_connected:
-                twitter_auth_url = await self.http_client.get(settings.API_BASE_URL + "/auth/twitter/connect", params={"user_id": user_id})
+                twitter_auth_url = await self.http_client.get(settings.API_PUBLIC_URL + "/auth/twitter/connect", params={"user_id": user_id})
                 if twitter_auth_url.json().get("url"):
                     context.user_data[f'twitter_auth_url_{user_id}'] = twitter_auth_url.json().get("url")
             else:
-                twitter_auth_url = f"{settings.API_BASE_URL}/auth/twitter/disconnect?user_id={user_id}"
+                twitter_auth_url = f"{settings.API_PUBLIC_URL}/auth/twitter/disconnect?user_id={user_id}"
                 context.user_data[f'twitter_auth_url_{user_id}'] = twitter_auth_url
                 
         except Exception as e:
@@ -305,7 +305,7 @@ class TelegramBot:
             if platform == "threads":
                 # Make direct HTTP request to disconnect endpoint
                 response = await self.http_client.post(
-                    f"{settings.API_BASE_URL}/auth/threads/disconnect",
+                    f"{settings.API_PUBLIC_URL}/auth/threads/disconnect",
                     params={"user_id": user_id}
                 )
                 
@@ -325,7 +325,7 @@ class TelegramBot:
             elif platform == "twitter":
                 # Handle Twitter disconnect similarly
                 response = await self.http_client.post(
-                    f"{settings.API_BASE_URL}/auth/twitter/disconnect",
+                    f"{settings.API_PUBLIC_URL}/auth/twitter/disconnect",
                     params={"user_id": user_id}
                 )
                 logger.info(f"Twitter disconnect response: {response.json()}")
@@ -373,7 +373,7 @@ class TelegramBot:
                 # Get account info to show in success message
                 try:
                     response = await self.http_client.get(
-                        f"{settings.API_BASE_URL}/threads/user_account",
+                        f"{settings.API_PUBLIC_URL}/threads/user_account",
                         params={"user_id": user_id}
                     )
                     account_data = response.json()
@@ -484,7 +484,7 @@ class TelegramBot:
         
         try:
             response = await self.http_client.post(
-                f"{settings.API_BASE_URL}/threads/post",
+                f"{settings.API_PUBLIC_URL}/threads/post",
                 params={"user_id": user_id, "message": message, "image_url": image_url},
                 timeout=30
             )
@@ -510,7 +510,7 @@ class TelegramBot:
         logger.info(f"Begin postting a message to Twitter for user {update.message.from_user.id}")
         try:
             response = await self.http_client.post(
-                f"{settings.API_BASE_URL}/twitter/post",
+                f"{settings.API_PUBLIC_URL}/twitter/post",
                 params={"user_id": user_id, "message": message, "image_url": image_url},
                 timeout=30
             )
