@@ -29,6 +29,9 @@ class TwitterController(SocialController):
             params = dict(request.query_params)
             user_id = params.get('user_id')
             
+            if not user_id:
+                raise Exception("User ID is required")
+            
             credentials = await self.get_user_credentials(user_id)
             if not credentials:
                 return {"status": "missing", "message": "❌ User not connected to Twitter"}

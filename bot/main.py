@@ -45,6 +45,7 @@ class TelegramBot:
         self.http_client = httpx.AsyncClient(
             headers={
                 settings.API_KEY_HEADER_NAME.strip('"'): settings.API_KEY,
+                "Host": settings.API_PUBLIC_URL.split("://")[1],
                 "User-Agent": "TelegramBot/1.0"
             },
             timeout=30,
@@ -95,6 +96,9 @@ class TelegramBot:
             )
             threads_account_data = threads_response.json()
             
+            if threads_response.status_code != 200:
+                raise Exception(threads_response.text, threads_response.status_code)
+            
             if threads_account_data.get("status") == "missing":
                 raise Exception("User not connected to Threads")
                 
@@ -132,6 +136,9 @@ class TelegramBot:
             )
             twitter_account_data = twitter_response.json()
             logger.info(f"Twitter account data: {twitter_account_data}")
+            
+            if twitter_response.status_code != 200:
+                raise Exception(twitter_response.text, twitter_response.status_code)
             
             if twitter_account_data.get("status") == "missing":
                 raise Exception("User not connected to Twitter")

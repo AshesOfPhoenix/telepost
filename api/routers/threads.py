@@ -28,6 +28,9 @@ class ThreadsController(SocialController):
             params = dict(request.query_params)
             user_id = params.get('user_id')
             
+            if not user_id:
+                raise Exception("User ID is required")
+            
             credentials = await self.get_user_credentials(user_id)
             
             if not credentials:
@@ -83,6 +86,9 @@ class ThreadsController(SocialController):
             user_id = params.get('user_id')
             message = params.get('message')
             image_url = params.get('image_url')
+            
+            if not user_id:
+                raise Exception("User ID is required")
             
             credentials = await self.get_user_credentials(user_id)
             if not credentials:
