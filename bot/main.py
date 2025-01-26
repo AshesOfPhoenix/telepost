@@ -227,6 +227,10 @@ class TelegramBot:
         try:
             threads_response = await self.http_client.get(self.API_PUBLIC_URL + "/auth/threads/is_connected", params={"user_id": user_id})
             logger.info(f"Threads response status: {threads_response.status_code}")
+            
+            if threads_response.status_code != 200:
+                raise Exception(threads_response.text, threads_response.status_code)
+            
             logger.info(f"Threads response text: {threads_response.text}")
             threads_response.raise_for_status()
             logger.info(f"Is threads connected: {threads_response.json()}")
@@ -234,6 +238,10 @@ class TelegramBot:
             
             twitter_response = await self.http_client.get(self.API_PUBLIC_URL + "/auth/twitter/is_connected", params={"user_id": user_id})
             logger.info(f"Twitter response status: {twitter_response.status_code}")
+            
+            if twitter_response.status_code != 200:
+                raise Exception(twitter_response.text, twitter_response.status_code)
+            
             logger.info(f"Twitter response text: {twitter_response.text}")
             twitter_response.raise_for_status()
             logger.info(f"Is twitter connected: {twitter_response.json()}")
