@@ -14,7 +14,7 @@ class SocialController(ABC):
         self.provider_id = provider_id
         self.db = db
         
-    async def get_user_credentials(self, user_id: int) -> Dict[str, Any]:
+    async def get_user_credentials(self, user_id: int, provider_id: str | None = None) -> Dict[str, Any]:
         """
         Retrieve user credentials for the social media platform.
         
@@ -24,7 +24,10 @@ class SocialController(ABC):
         Returns:
             Dict containing user credentials
         """
-        credentials = await self.db.get_user_credentials(user_id, self.provider_id)
+        credentials = await self.db.get_user_credentials(
+            user_id, 
+            provider_id if provider_id is not None else self.provider_id
+        )
         return credentials
     
     @abstractmethod

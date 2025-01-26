@@ -3,11 +3,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi import HTTPException
 from api.utils.logger import logger
 from fastapi.routing import APIRoute
-from pydantic import BaseModel
 from fastapi import APIRouter, Request
 
 from api.utils.config import get_settings
-from api.db.database import db
 from pytwitter import Api
 from api.base.auth_handler_base import AuthHandlerBase
 from api.utils.prompts import SUCCESS_PAGE_HTML

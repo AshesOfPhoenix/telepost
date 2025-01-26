@@ -144,7 +144,8 @@ class TelegramBot:
         
         except Exception as e:
             if str(e) == "User not connected to Threads":
-                await update.message.reply_text(NO_ACCOUNT_MESSAGE.format(platform="Threads"), parse_mode='Markdown')
+                # await update.message.reply_text(NO_ACCOUNT_MESSAGE.format(platform="Threads"), parse_mode='Markdown')
+                pass
             else:
                 logger.error(f"Error in get_user_account: {str(e)}")
                 await update.message.reply_text("Sorry, there was an error getting your Threads account information.", parse_mode='Markdown')
@@ -204,7 +205,8 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"Error in get_user_account: {str(e)}")
             if str(e) == "User not connected to Twitter":
-                await update.message.reply_text(NO_ACCOUNT_MESSAGE.format(platform="Twitter"), parse_mode='Markdown')
+                # await update.message.reply_text(NO_ACCOUNT_MESSAGE.format(platform="Twitter"), parse_mode='Markdown')
+                pass
             else:
                 await update.message.reply_text("Sorry, there was an error getting your Twitter account information.", parse_mode='Markdown')
 
@@ -510,6 +512,7 @@ class TelegramBot:
             await update.message.reply_text("❌ Please provide an text or image to post.", parse_mode='Markdown')
             return
         
+        #! TODO: Parallelize the requests to Threads and Twitter
         try:
             response = await self.http_client.post(
                 f"{self.API_PUBLIC_URL}/threads/post",
@@ -527,7 +530,8 @@ class TelegramBot:
                 success_message = POST_SUCCESS_MESSAGE.format(post_url=thread_url, timestamp=thread_timestamp, platform="Threads")
                 await update.message.reply_text(success_message, parse_mode='Markdown')
             elif response.json().get("status") == "missing":
-                await update.message.reply_text("❌ User not connected to Threads", parse_mode='Markdown')
+                # await update.message.reply_text("❌ User not connected to Threads", parse_mode='Markdown')
+                pass
             else:
                 await update.message.reply_text("❌ Failed to post a thread. Please try again.", parse_mode='Markdown')
                 
@@ -556,7 +560,8 @@ class TelegramBot:
                 success_message = POST_SUCCESS_MESSAGE.format(post_url=tweet_url, timestamp=tweet_timestamp, platform="Twitter")
                 await update.message.reply_text(success_message, parse_mode='Markdown')
             elif response.json().get("status") == "missing":
-                await update.message.reply_text("❌ User not connected to Twitter", parse_mode='Markdown')
+                # await update.message.reply_text("❌ User not connected to Twitter", parse_mode='Markdown')
+                pass
             else:
                 await update.message.reply_text("❌ Failed to post a tweet. Please try again.", parse_mode='Markdown')
             

@@ -10,6 +10,7 @@ from pythreads.api import API
 from api.utils.config import get_settings
 from api.utils.prompts import SUCCESS_PAGE_HTML
 from api.base.auth_handler_base import AuthHandlerBase
+
 settings = get_settings()
 
 router = APIRouter()
