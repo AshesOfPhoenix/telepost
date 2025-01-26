@@ -29,7 +29,7 @@ class Database:
             self.connect()
             logger.info(f"✓ Connected to database: {settings.DATABASE_USER}@{settings.DATABASE_HOST}:{settings.DATABASE_PORT}/{settings.DATABASE_NAME}")
             logger.info(f"Creating tables ...")
-            self.create_tables()
+            # self.create_tables()
             logger.info(f"✓ Tables created.")
             logger.info(f"Setting up encryption key ...")
             self.crypto_key = Fernet(settings.ENCRYPTION_KEY.encode())
