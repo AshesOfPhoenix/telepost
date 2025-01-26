@@ -42,11 +42,7 @@ class TelegramBot:
         logger.info("Starting up bot...")
         self.application = ApplicationBuilder().token(settings.TELEGRAM_TOKEN).build()
         self.API_PUBLIC_URL = settings.API_PUBLIC_URL
-        api_url_parts = settings.API_PUBLIC_URL.split("://")[1]
-        if ":" in api_url_parts:
-            api_host = f"{api_url_parts.split(':')[0]}:8000"  # Include the port
-        else:
-            api_host = f"{api_url_parts}:8000"
+        api_host = settings.API_PUBLIC_URL.split("://")[1]
         logger.info(f"API host: {api_host}")
         self.http_client = httpx.AsyncClient(
             headers={
@@ -66,8 +62,6 @@ class TelegramBot:
         try:
             bot_response = await context.bot.get_me()
             api_response = await self.http_client.get(self.API_PUBLIC_URL + "/health")
-            logger.info(f"API response status: {api_response.status_code}")
-            logger.info(f"API response content: {api_response.text}")
             
             if api_response.status_code != 200:
                 await update.message.reply_text(
