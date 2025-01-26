@@ -50,7 +50,12 @@ class TelegramBot:
                 "Host": api_host,
                 "User-Agent": "TelegramBot/1.0"
             },
-            timeout=30,
+            timeout=httpx.Timeout(
+                connect=5.0, 
+                read=30.0,   
+                write=30.0,  
+                pool=30.0      
+            ),
             verify=True
         )
         logger.info("✅ Bot initialized")
