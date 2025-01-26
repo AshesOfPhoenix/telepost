@@ -52,6 +52,8 @@ async def redoc_html():
 
 logger.info("✓ API created")
 
+logger.info(f"Setting up CORS middleware with allowed origins: {settings.CORS_ALLOWED_ORIGINS}")
+
 # CORS middleware configuration
 app.add_middleware(
     CORSMiddleware,
@@ -61,6 +63,10 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+logger.info("✓ CORS middleware added")
+
+logger.info(f"Setting up TrustedHostMiddleware with allowed hosts: {settings.ALLOWED_HOSTS}")
 
 app.add_middleware(
     TrustedHostMiddleware,
