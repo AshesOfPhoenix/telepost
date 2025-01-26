@@ -1,0 +1,6 @@
+app = "telepost"
+
+primary_region = "fra"
+
+[build]
+    dockerfile = "bot/Dockerfile"
