@@ -29,6 +29,18 @@ class Settings(BaseSettings):
             return value
         return ["localhost", "127.0.0.1"]
     
+    # CORS
+    CORS_ALLOWED_ORIGINS: str = ""
+    
+    @field_validator("CORS_ALLOWED_ORIGINS", mode="after")
+    @classmethod
+    def validate_cors_allowed_origins(cls, value) -> List[str]:
+        if isinstance(value, str):
+            return [x.strip() for x in value.split(",")]
+        elif isinstance(value, list):
+            return value
+        return []
+    
     # Encryption
     ENCRYPTION_KEY: str
     

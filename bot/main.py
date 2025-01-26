@@ -79,6 +79,14 @@ class TelegramBot:
     async def get_user_account(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             user_id = update.message.from_user.id
+            if not user_id:
+                raise Exception("User ID is required")
+        except Exception as e:
+            logger.error(f"Error in get_user_account: {str(e)}")
+            await update.message.reply_text("Sorry, there was an error getting your account information.", parse_mode='Markdown')
+            return
+        
+        try:
             
             # Get Threads account data
             threads_response = await self.http_client.get(

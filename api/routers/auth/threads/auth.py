@@ -1,5 +1,5 @@
 # Threads Auth Controller
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, HTTPException
 from api.utils.logger import logger
 from fastapi.routing import APIRoute
 from fastapi import APIRouter, Request
@@ -29,6 +29,9 @@ class ThreadsAuthHandler(AuthHandlerBase):
         logger.info("Generating Threads authorization URL")
         params = dict(request.query_params)
         user_id = params.get('user_id')
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
         
         auth_url, state_key = Threads.authorization_url(self.config)
         
@@ -109,6 +112,9 @@ class ThreadsAuthHandler(AuthHandlerBase):
         """Command handler for /disconnect_threads"""
         params = dict(request.query_params)
         user_id = params.get('user_id')
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
         
         self.clear_state(user_id)
         

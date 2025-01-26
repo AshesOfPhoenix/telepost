@@ -1,5 +1,5 @@
 # Threads Auth Controller
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, HTTPException
 from api.utils.logger import logger
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
@@ -31,6 +31,9 @@ class TwitterAuthHandler(AuthHandlerBase):
         logger.info(f"Generating Twitter authorization URL")
         params = dict(request.query_params)
         user_id = params.get('user_id')
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
         
         authorization_url, code_verifier, state = self.config.get_oauth2_authorize_url(
             redirect_uri=f"{settings.API_PUBLIC_URL}{settings.TWITTER_REDIRECT_URI}",
@@ -124,6 +127,9 @@ class TwitterAuthHandler(AuthHandlerBase):
         """Command handler for /disconnect_twitter"""
         params = dict(request.query_params)
         user_id = params.get('user_id')
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
         
         self.clear_state(user_id)
         
