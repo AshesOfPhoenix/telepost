@@ -26,8 +26,10 @@ class Settings(BaseSettings):
     @field_validator("ALLOWED_USERS", mode="after")
     @classmethod
     def parse_allowed_users(cls, v: str) -> List[str]:
-        if not v:
+        if v == "":
             return []
+        if not v:
+            return None
         return [x.strip() for x in v.split(",")]
     
     # Redis (for rate limiting/caching)

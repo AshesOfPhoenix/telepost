@@ -58,6 +58,7 @@ class TelegramBot:
             ),
             verify=True
         )
+        logger.info(f"Allowed users: {settings.ALLOWED_USERS}")
         logger.info("✅ Bot initialized")
         
     async def health_check(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -573,7 +574,10 @@ class TelegramBot:
     # Bot Handlers
     def add_handlers(self):
         # Commands with user restriction
-        allowed_users_filter = filters.User(username=settings.ALLOWED_USERS)
+        if not settings.ALLOWED_USERS or settings.ALLOWED_USERS[0] == "all":
+            allowed_users_filter = filters.ALL
+        else:
+            allowed_users_filter = filters.User(username=settings.ALLOWED_USERS)
         self.application.add_handler(
             CommandHandler("start", self.start_command, filters=allowed_users_filter)
         )
