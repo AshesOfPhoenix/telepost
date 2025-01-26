@@ -176,6 +176,10 @@ class TelegramBot:
         """Sends a message with inline buttons for platform connection."""
         user_id = update.message.from_user.id
         
+        if not user_id:
+            await update.message.reply_text("❌ An error occurred while connecting your account. Please try again.", parse_mode='Markdown')
+            return
+        
         is_threads_connected = False
         is_twitter_connected = False
         threads_auth_url = None
@@ -209,7 +213,8 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"Error in connect_command: {str(e)}")
             await update.message.reply_text("❌ An error occurred while connecting your account. Please try again.", parse_mode='Markdown')
-        
+            return
+            
         keyboard = [
             [
                 InlineKeyboardButton(
