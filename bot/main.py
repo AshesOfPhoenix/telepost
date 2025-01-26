@@ -176,6 +176,11 @@ class TelegramBot:
         """Sends a message with inline buttons for platform connection."""
         user_id = update.message.from_user.id
         
+        is_threads_connected = False
+        is_twitter_connected = False
+        threads_auth_url = None
+        twitter_auth_url = None
+        
         try:
             threads_response = await self.http_client.get(settings.API_BASE_URL + "/auth/threads/is_connected", params={"user_id": user_id})
             logger.info(f"Is threads connected: {threads_response.json()}")
@@ -184,9 +189,6 @@ class TelegramBot:
             twitter_response = await self.http_client.get(settings.API_BASE_URL + "/auth/twitter/is_connected", params={"user_id": user_id})
             logger.info(f"Is twitter connected: {twitter_response.json()}")
             is_twitter_connected = twitter_response.json()
-            
-            threads_auth_url = None
-            twitter_auth_url = None
             
             if not is_threads_connected:
                 threads_auth_url = await self.http_client.get(settings.API_BASE_URL + "/auth/threads/connect", params={"user_id": user_id})
