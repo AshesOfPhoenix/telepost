@@ -354,11 +354,9 @@ class TelegramBot:
                 threads_auth_url = f"{self.API_PUBLIC_URL}/auth/threads/disconnect?user_id={user_id}"
                 context.user_data[f'threads_auth_url_{user_id}'] = threads_auth_url
             
-            
         except Exception as e:
             logger.error(f"Error in connect_command: {str(e)}")
             await update.message.reply_text("❌ An error occurred while connecting your account. Please try again.", parse_mode='Markdown')
-            return
             
         try:
             twitter_response = await self.get("/auth/twitter/is_connected", params={"user_id": user_id})
@@ -369,8 +367,6 @@ class TelegramBot:
             logger.info(f"Is twitter connected: {twitter_response.json()}")
             is_twitter_connected = twitter_response.json()
             
-            
-
             if not is_twitter_connected:
                 twitter_auth_url = await self.get("/auth/twitter/connect", params={"user_id": user_id})
                 if twitter_auth_url.json().get("url"):
@@ -382,7 +378,7 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"Error in connect_command: {str(e)}")
             await update.message.reply_text("❌ An error occurred while connecting your account. Please try again.", parse_mode='Markdown')
-            return
+
             
         keyboard = [
             [
@@ -773,8 +769,9 @@ class TelegramBot:
             
             if is_connected:
                 response = await self.post("/threads/post", params={"user_id": user_id, "message": message, "image_url": image_url}, timeout=30)
-                logger.info(f"Response: {response.json()}")
                 
+                logger.info(f"Response: {response.json()}")
+                await self.handle_api_response(response, "Threads")
                 
                 if response.json().get("status") == "success":
                     thread_url = response.json().get("thread").get("permalink")
@@ -800,6 +797,8 @@ class TelegramBot:
             is_connected = await self.get("/twitter/is_connected", params={"user_id": user_id})
             logger.info(f"Is connected: {is_connected}")
             
+            await self.handle_api_response(response, "Twitter")
+
             if is_connected:
                 response = await self.post("/twitter/post", params={"user_id": user_id, "message": message, "image_url": image_url}, timeout=30)
                 
