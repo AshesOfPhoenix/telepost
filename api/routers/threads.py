@@ -1,8 +1,9 @@
 # Threads Controller
+from datetime import datetime, timezone
 from api.utils.logger import logger
 from fastapi.routing import APIRoute
 from api.utils.config import ThreadsAccountResponse, ThreadsInsightsResponse, get_settings
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, HTTPException, Response
 from pythreads.configuration import Configuration
 from pythreads.api import API
 from pythreads.threads import Threads
@@ -29,56 +30,92 @@ class ThreadsController(SocialController):
             user_id = params.get('user_id')
             
             if not user_id:
-                raise Exception("User ID is required")
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "status": "error",
+                        "code": 400,
+                        "message": "User ID is required",
+                        "platform": "Threads"
+                    }
+                )
             
             credentials = await self.get_user_credentials(user_id)
-            
             if not credentials:
-                return {"status": "missing", "message": "❌ User not connected to Threads"}
-            
-            # Convert credentials from JSON string to Threads credentials object
-            threads_credentials = Credentials.from_json(credentials)
-            logger.info(f"Credentials: {threads_credentials}")
-            
-            async with API(credentials=threads_credentials) as api:
-                account_response = await api.account()
-                logger.info(f"Account response: {account_response}")
-                
-                account = ThreadsAccountResponse.model_validate(account_response)
-                logger.info(f"Account: {account}")
-                # 'views', 'likes', 'replies', 'reposts', 'quotes', 'followers_count', 'follower_demographics'
-                insights_response = await api.user_insights(
-                    metrics=['views', 'likes', 'replies', 'reposts', 'quotes', 'followers_count'],
+                raise HTTPException(
+                    status_code=404,
+                    detail={
+                        "status": "missing",
+                        "code": 404,
+                        "message": "User not connected to Threads",
+                        "platform": "Threads"
+                    }
                 )
-                insights = ThreadsInsightsResponse.model_validate(insights_response)
+            
+            threads_credentials = Credentials.from_json(credentials)
+            
+            # Check expiration
+            expiration_datetime = threads_credentials.expiration
+            current_time = datetime.now(timezone.utc)
+            if expiration_datetime < current_time:
+                await self.db.delete_user_credentials(user_id, self.provider_id)
+                raise HTTPException(
+                    status_code=401,
+                    detail={
+                        "status": "expired",
+                        "code": 401,
+                        "message": "Credentials expired"
+                    }
+                )
+            
+            try:
+                async with API(credentials=threads_credentials) as api:
+                    account_response = await api.account()
+                    account = ThreadsAccountResponse.model_validate(account_response)
+                    insights_response = await api.user_insights(
+                        metrics=['views', 'likes', 'replies', 'reposts', 'quotes', 'followers_count'],
+                    )
+                    insights = ThreadsInsightsResponse.model_validate(insights_response)
+                    
+                    return {
+                        "status": "success",
+                        "code": 200,
+                        "data": {
+                            "id": account.id,
+                            "username": account.username,
+                            "biography": account.threads_biography,
+                            "profile_picture_url": account.threads_profile_picture_url,
+                            "likes": insights.get_total_likes(),
+                            "replies": insights.get_total_replies(),
+                            "reposts": insights.get_total_reposts(),
+                            "quotes": insights.get_total_quotes(),
+                            "followers_count": insights.get_total_followers(),
+                        }
+                    }
+                    
+            except Exception as api_error:
+                logger.error(f"Threads API Error: {str(api_error)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail={
+                        "status": "error",
+                        "code": 500,
+                        "message": f"API Error: {str(api_error)}"
+                    }
+                )
                 
-                # Convert account data to a dictionary
-                logger.info(f"Account: {account}")
-                logger.info(f"Insights: {insights}")
-                likes = insights.get_total_likes()
-                replies = insights.get_total_replies()
-                reposts = insights.get_total_reposts()
-                quotes = insights.get_total_quotes()
-                followers_count = insights.get_total_followers()
-                
-                account_data = {
-                    "id": account.id,
-                    "username": account.username,
-                    "biography": account.threads_biography,
-                    "profile_picture_url": account.threads_profile_picture_url,
-                    #"views": insights.get("views"),
-                    "likes": likes,
-                    "replies": replies,
-                    "reposts": reposts,
-                    "quotes": quotes,
-                    "followers_count": followers_count,
-                }
-                logger.info(f"Account data: {account_data}")
-                return account_data
-                
+        except HTTPException:
+            raise
         except Exception as e:
-            logger.error(f"Error getting user account: {str(e)}")
-            return {"status": "error", "message": str(e)}
+            logger.error(f"Unexpected error: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "status": "error",
+                    "code": 500,
+                    "message": "An unexpected error occurred"
+                }
+            )
         
     async def post(self, request: Request):
         try:
@@ -88,14 +125,40 @@ class ThreadsController(SocialController):
             image_url = params.get('image_url')
             
             if not user_id:
-                raise Exception("User ID is required")
+                raise Exception(
+                    "User ID is required",
+                    platform="Threads",
+                    status_code=400,
+                    details={"message": "User ID is required"}
+                )
             
             credentials = await self.get_user_credentials(user_id)
             if not credentials:
-                return {"status": "missing", "message": "❌ User not connected to Threads"}
-            
+                raise HTTPException(
+                    status_code=404, 
+                    detail={
+                        "status": "missing",
+                        "code": 404,
+                        "message": "User not connected to Threads",
+                        "platform": "Threads"
+                    }
+                )
+                
             threads_credentials = Credentials.from_json(credentials)
-            logger.info(f"Credentials: {threads_credentials}")
+                
+            # Check expiration
+            expiration_datetime = threads_credentials.expiration
+            current_time = datetime.now(timezone.utc)
+            if expiration_datetime < current_time:
+                await self.db.delete_user_credentials(user_id)
+                raise HTTPException(
+                    status_code=401, 
+                    detail={
+                        "status": "expired",
+                        "code": 401,
+                        "message": "Credentials expired"
+                    }
+                )
             
             async with API(credentials=threads_credentials) as api:
                 # Create a container
@@ -122,18 +185,50 @@ class ThreadsController(SocialController):
                 if publish_state == "PUBLISHED":
                     thread = await api.thread(result_id)
                     logger.info(f"Thread: {thread}")
-                    return {
-                        "status": "success",
-                        "message": "Thread posted successfully.",
-                        "result_id": result_id,
-                        "thread": thread
-                    }
+                    return Response(
+                        status_code=200,
+                        content={"status": "success", "code": 200, "message": "Thread posted successfully.", "details": {"result_id": result_id, "thread": thread}}
+                    )
                 else:
-                    return {"status": "error", "message": f"Failed to publish thread. State: {publish_state}"}
+                    raise HTTPException(
+                        status_code=500,
+                        detail={
+                            "status": "error",
+                            "code": 500,
+                            "message": f"Failed to publish thread. State: {publish_state}"
+                        }
+                    )
             
+        except HTTPException:
+            raise
+        except Exception as http_error:
+            logger.error(f"HTTP Error: {str(http_error)}")
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "status": "error",
+                    "code": 500,
+                    "message": str(http_error)
+                }
+            )
+        
+    async def disconnect(self, user_id: int) -> bool:
+        try:
+            await self.db.delete_user_credentials(user_id, self.provider_id)
+            return Response(
+                status_code=200,
+                content={"status": "success", "code": 200, "message": "Disconnected from Threads successfully."}
+            )
+        except HTTPException:
+            raise
         except Exception as e:
-            logger.error(f"Error posting thread: {str(e)}")
-            return {"status": "error", "message": str(e)}
+            logger.error(f"Error disconnecting from Threads: {str(e)}")
+            raise HTTPException(status_code=500, detail={
+                    "status": "error",
+                    "code": 500,
+                    "message": str(e)
+                }
+            )
     
 
 threads_controller = ThreadsController()

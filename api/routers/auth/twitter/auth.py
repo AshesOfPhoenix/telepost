@@ -146,7 +146,7 @@ class TwitterAuthHandler(AuthHandlerBase):
             api.get_me()
             return True
         except Exception as e:
-            return False
+            raise HTTPException(status_code=500, detail=str(e))
 
 
 auth_handler = TwitterAuthHandler()

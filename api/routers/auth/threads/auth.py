@@ -135,7 +135,7 @@ class ThreadsAuthHandler(AuthHandlerBase):
                 await api.threads()
             return True
         except:
-            return False
+            raise HTTPException(status_code=404, detail="User not connected to Threads")
 
 
 auth_handler = ThreadsAuthHandler()

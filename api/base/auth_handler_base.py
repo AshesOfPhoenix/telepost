@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from asyncio.log import logger
-from fastapi import Request, Response
+from datetime import datetime
+import json
+from fastapi import HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from typing import Dict, Any, Optional, Tuple
 from api.db.database import db
@@ -61,14 +63,22 @@ class AuthHandlerBase(ABC):
         """
         Get user credentials
         """
-        credentials = await self.db.get_user_credentials(user_id, self.provider_id)
-        return credentials
+        try:
+            credentials = await self.db.get_user_credentials(user_id, self.provider_id)
+            return credentials
+        except Exception as e:
+            logger.error(f"Error getting user credentials: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
     
     async def store_user_credentials(self, user_id: int, credentials: Credentials | dict) -> bool:
         """
         Store user credentials
         """
-        return await self.db.store_user_credentials(user_id, credentials, self.provider_id)
+        try:
+            return await self.db.store_user_credentials(user_id, credentials, self.provider_id)
+        except Exception as e:
+            logger.error(f"Error storing user credentials: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
     
     @abstractmethod
     async def verify_credentials(self, user_id: int) -> bool:
@@ -95,10 +105,20 @@ class AuthHandlerBase(ABC):
         """
         try:
             credentials = await self.get_user_credentials(user_id)
-            return credentials is not None
+            
+            if credentials is None:
+                return False
+            
+            credentials = json.loads(credentials)
+            
+            if credentials.get("expires_at", 0) < datetime.now().timestamp():
+                await self.db.delete_user_credentials(user_id)
+                return False
+            
+            return True
         except Exception as e:
             logger.error(f"Error getting user credentials: {e}")
-            return False
+            raise HTTPException(status_code=500, detail=str(e))
     
     def get_state_from_user_id(self, user_id: int) -> Dict[str, Any]:
         """
@@ -108,7 +128,7 @@ class AuthHandlerBase(ABC):
             return self.states.get(user_id, {})
         except Exception as e:
             logger.error(f"Error getting state from user_id: {e}")
-            return {}
+            raise HTTPException(status_code=500, detail=str(e))
     
     def get_user_id_from_state(self, state: str) -> Optional[str]:
         """
@@ -129,7 +149,7 @@ class AuthHandlerBase(ABC):
             return None
         except Exception as e:
             logger.error(f"Error getting user_id from state: {e}")
-            return None
+            raise HTTPException(status_code=404, detail=f"State not found for user")
     
     def get_code_verifier_from_state(self, state: str) -> Optional[str]:
         """
@@ -150,7 +170,7 @@ class AuthHandlerBase(ABC):
             return None
         except Exception as e:
             logger.error(f"Error getting code_verifier from state: {e}")
-            return None
+            raise HTTPException(status_code=404, detail=f"State not found for user")
     
     def store_state(self, user_id: str, state: str, code_verifier: str | None = None) -> None:
         """
@@ -169,7 +189,8 @@ class AuthHandlerBase(ABC):
             }
         except Exception as e:
             logger.error(f"Error storing state: {e}")
-
+            raise HTTPException(status_code=500, detail=str(e))
+        
     def get_all_states(self) -> Dict[str, Dict[str, str]]:
         """
         Get all stored states
@@ -178,7 +199,7 @@ class AuthHandlerBase(ABC):
             return self.states
         except Exception as e:
             logger.error(f"Error getting all states: {e}")
-            return {}
+            raise HTTPException(status_code=500, detail=str(e))
 
     def clear_state(self, user_id: str) -> None:
         """
@@ -192,9 +213,10 @@ class AuthHandlerBase(ABC):
             logger.info(f"Cleared state for user {user_id}")
         else:
             logger.warning(f"State not found for user {user_id}")
+            raise HTTPException(status_code=404, detail=f"State not found for user {user_id}")
 
     @abstractmethod
-    async def disconnect(self, request: Request) -> Dict[str, Any]:
+    async def disconnect(self, request: Request) -> Response:
         """
         Disconnect user's account from the social media platform.
         
@@ -202,7 +224,7 @@ class AuthHandlerBase(ABC):
             user_id: The ID of the user
             
         Returns:
-            Dict[str, Any]: Response containing status of the operation
+            Response: Response containing status of the operation
         """
         try:
             params = dict(request.query_params)
@@ -211,7 +233,7 @@ class AuthHandlerBase(ABC):
             self.clear_state(user_id)
             
             await self.db.delete_user_credentials(user_id, self.provider_id)
-            return {"status": "ok"}
+            return Response(status_code=200, content={"status": "ok"})
         except Exception as e:
             logger.error(f"Error disconnecting user: {e}")
-            return {"status": "error", "message": str(e)}
+            raise HTTPException(status_code=500, detail=str(e))

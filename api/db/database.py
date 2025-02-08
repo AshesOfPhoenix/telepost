@@ -56,7 +56,7 @@ class Database:
     def encrypt_data(self, data):
         return self.crypto_key.encrypt(json.dumps(data).encode())
 
-    def decrypt_data(self, encrypted_data):
+    def decrypt_data(self, encrypted_data) -> dict | None:
         if encrypted_data is None:
             return None
         if isinstance(encrypted_data, memoryview):
@@ -79,6 +79,7 @@ class Database:
                     encrypted_creds = self.encrypt_data(credentials.to_json())
                 else:
                     encrypted_creds = self.encrypt_data(credentials)
+                    
                 provider_column = f"{provider_id}_credentials"
                 statement = f"""
                     INSERT INTO users (telegram_id, {provider_column})
@@ -92,13 +93,18 @@ class Database:
             logger.error(f"Error storing user {provider_id} credentials: {str(e)}")
             raise e
 
-    async def get_user_credentials(self, telegram_id: str, provider_id: str) -> Credentials | dict | None:
+    async def get_user_credentials(self, telegram_id: str, provider_id: str) -> dict | None:
         try:
             with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(f"SELECT {provider_id}_credentials FROM users WHERE telegram_id = %s", (telegram_id,))
                 result = cur.fetchone()
                 if result and result[f'{provider_id}_credentials']:
-                    return self.decrypt_data(result[f'{provider_id}_credentials'])
+                    decrypted_data = self.decrypt_data(result[f'{provider_id}_credentials'])
+                
+                    logger.debug(f"Decrypted data type: {type(decrypted_data)}")
+                    logger.debug(f"Decrypted data: {decrypted_data}")
+                    
+                    return decrypted_data
             return None
         except Exception as e:
             logger.error(f"Error getting user {provider_id} credentials: {str(e)}")
