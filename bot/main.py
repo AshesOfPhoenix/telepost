@@ -192,10 +192,12 @@ class TelegramBot:
         try:
             
             # Get Threads account data
-            threads_response = await self.get("/threads/user_account", params={"user_id": user_id})
-            threads_data = await self.handle_api_response(threads_response, "Threads").data
+            response = await self.get("/threads/user_account", params={"user_id": user_id})
+            response_data = await self.handle_api_response(response, "Threads")
             
-            logger.info(f"Threads account data: {threads_data}")
+            logger.info(f"Threads account data: {response_data}")
+            
+            threads_data = response_data.get("data")
             
             # Format the account data into a readable message
             message = THREADS_ACCOUNT_INFO_MESSAGE.format(
@@ -246,12 +248,13 @@ class TelegramBot:
             
         try:
             # Get Twitter account data
-            twitter_response = await self.get("/twitter/user_account", params={"user_id": user_id})
-            twitter_data = await self.handle_api_response(twitter_response, "Twitter").data
-            logger.info(f"Twitter account data: {twitter_data}")
-
-            logger.info(f"Twitter account data: {twitter_data}")
+            response = await self.get("/twitter/user_account", params={"user_id": user_id})
+            response_data = await self.handle_api_response(response, "Twitter")
             
+            logger.info(f"Twitter account data: {response_data}")
+            
+            twitter_data = response_data.get("data")
+
             # If verified_type is "blue", add a verified badge
             verified_type = twitter_data.get("verified_type")
             verified_badge = "✅" if verified_type == "blue" else ""
