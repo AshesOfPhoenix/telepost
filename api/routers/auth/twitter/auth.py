@@ -1,4 +1,5 @@
 # Threads Auth Controller
+from datetime import datetime
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi import HTTPException
 from api.utils.logger import logger
@@ -148,6 +149,12 @@ class TwitterAuthHandler(AuthHandlerBase):
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
+    async def check_credentials_expiration(self, user_id: int) -> bool:
+        """Check if credentials are expired"""
+        credentials = await self.get_user_credentials(user_id)
+        if not credentials:
+            return False
+        return credentials.get("expires_at", 0) < datetime.now().timestamp()
 
 auth_handler = TwitterAuthHandler()
 

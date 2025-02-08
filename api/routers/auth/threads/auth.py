@@ -1,4 +1,5 @@
 # Threads Auth Controller
+from datetime import datetime
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi import HTTPException
 from api.utils.logger import logger
@@ -137,6 +138,12 @@ class ThreadsAuthHandler(AuthHandlerBase):
         except:
             raise HTTPException(status_code=404, detail="User not connected to Threads")
 
+    async def check_credentials_expiration(self, user_id: int) -> bool:
+        """Check if credentials are expired"""
+        credentials = await self.get_user_credentials(user_id)
+        if not credentials:
+            return False
+        return credentials.get("expiration", 0) < datetime.now().timestamp()
 
 auth_handler = ThreadsAuthHandler()
 

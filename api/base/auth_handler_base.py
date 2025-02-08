@@ -58,6 +58,16 @@ class AuthHandlerBase(ABC):
     #         Dict containing status of the operation
     #     """
     #     pass
+    
+    async def delete_user_credentials(self, user_id: int) -> bool:
+        """
+        Delete user credentials
+        """
+        try:
+            return await self.db.delete_user_credentials(user_id, self.provider_id)
+        except Exception as e:
+            logger.error(f"Error deleting user credentials: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
     async def get_user_credentials(self, user_id: int) -> Credentials | None:
         """
@@ -93,6 +103,13 @@ class AuthHandlerBase(ABC):
         """
         pass
     
+    @abstractmethod
+    async def check_credentials_expiration(self, user_id: int) -> bool:
+        """
+        Check if credentials are expired
+        """
+        pass
+    
     async def is_connected(self, user_id: int) -> bool:
         """
         Check if user is connected to the service
@@ -111,8 +128,8 @@ class AuthHandlerBase(ABC):
             
             credentials = json.loads(credentials)
             
-            if credentials.get("expires_at", 0) < datetime.now().timestamp():
-                await self.db.delete_user_credentials(user_id)
+            if await self.check_credentials_expiration(user_id):
+                await self.delete_user_credentials(user_id)
                 return False
             
             return True
