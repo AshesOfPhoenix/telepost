@@ -52,9 +52,13 @@ class TwitterController(SocialController):
                 )
             
             try:
-                twitter_credentials = json.loads(credentials)
+                logger.info(f"Credentials: {type(credentials)}")
+                # If credentials is a string, parse it; otherwise use as is
+                twitter_credentials = credentials
+                if isinstance(credentials, str):
+                    twitter_credentials = json.loads(credentials)
                 
-                # Check token expiration
+                # Now twitter_credentials is guaranteed to be a dict
                 if twitter_credentials.get("expires_at") < datetime.now().timestamp():
                     await self.db.delete_user_credentials(user_id, self.provider_id)
                     raise HTTPException(
@@ -121,7 +125,12 @@ class TwitterController(SocialController):
                     
                     return Response(
                         status_code=200,
-                        content={"status": "success", "code": 200, "data": account_data}
+                        content=json.dumps({
+                            "status": "success",
+                            "code": 200,
+                            "data": account_data
+                        }),
+                        media_type="application/json"
                     )
                     
                 except Exception as api_error:

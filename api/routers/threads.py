@@ -1,5 +1,6 @@
 # Threads Controller
 from datetime import datetime, timezone
+import json
 from api.utils.logger import logger
 from fastapi.routing import APIRoute
 from api.utils.config import ThreadsAccountResponse, ThreadsInsightsResponse, get_settings
@@ -77,21 +78,27 @@ class ThreadsController(SocialController):
                     )
                     insights = ThreadsInsightsResponse.model_validate(insights_response)
                     
-                    return {
-                        "status": "success",
-                        "code": 200,
-                        "data": {
-                            "id": account.id,
-                            "username": account.username,
-                            "biography": account.threads_biography,
-                            "profile_picture_url": account.threads_profile_picture_url,
-                            "likes": insights.get_total_likes(),
-                            "replies": insights.get_total_replies(),
-                            "reposts": insights.get_total_reposts(),
-                            "quotes": insights.get_total_quotes(),
-                            "followers_count": insights.get_total_followers(),
-                        }
+                    account_data = {
+                        "id": account.id,
+                        "username": account.username,
+                        "biography": account.threads_biography,
+                        "profile_picture_url": account.threads_profile_picture_url,
+                        "likes": insights.get_total_likes(),
+                        "replies": insights.get_total_replies(),
+                        "reposts": insights.get_total_reposts(),
+                        "quotes": insights.get_total_quotes(),
+                        "followers_count": insights.get_total_followers(),
                     }
+                    
+                    return Response(
+                        status_code=200,
+                        content=json.dumps({
+                            "status": "success",
+                            "code": 200,
+                            "data": account_data
+                        }),
+                        media_type="application/json"
+                    )
                     
             except Exception as api_error:
                 logger.error(f"Threads API Error: {str(api_error)}")
