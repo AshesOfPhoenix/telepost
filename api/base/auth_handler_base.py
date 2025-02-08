@@ -63,7 +63,8 @@ class AuthHandlerBase(ABC):
         """
         Delete user credentials
         """
-        try:
+        try:        
+            logger.info(f"Deleting credentials for user_id: {user_id}, provider_id: {self.provider_id}")
             return await self.db.delete_user_credentials(user_id, self.provider_id)
         except Exception as e:
             logger.error(f"Error deleting user credentials: {e}")
@@ -125,8 +126,6 @@ class AuthHandlerBase(ABC):
             
             if credentials is None:
                 return False
-            
-            credentials = json.loads(credentials)
             
             if await self.check_credentials_expiration(user_id):
                 await self.delete_user_credentials(user_id)

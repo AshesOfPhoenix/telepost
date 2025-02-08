@@ -1,5 +1,6 @@
 # Threads Auth Controller
-from datetime import datetime
+from datetime import datetime, timezone
+import json
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi import HTTPException
 from api.utils.logger import logger
@@ -141,9 +142,15 @@ class ThreadsAuthHandler(AuthHandlerBase):
     async def check_credentials_expiration(self, user_id: int) -> bool:
         """Check if credentials are expired"""
         credentials = await self.get_user_credentials(user_id)
+        logger.info(f"Credentials: {credentials}")
         if not credentials:
             return False
-        return credentials.get("expiration", 0) < datetime.now().timestamp()
+        
+        credentials = json.loads(credentials)
+        # "expiration": "2025-04-09T09:06:20.800964+00:00"
+        # convert to utc
+        expiration = datetime.strptime(credentials.get("expiration"), "%Y-%m-%dT%H:%M:%S.%f%z").astimezone(timezone.utc)
+        return expiration < datetime.now(timezone.utc)
 
 auth_handler = ThreadsAuthHandler()
 

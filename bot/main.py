@@ -193,7 +193,7 @@ class TelegramBot:
             
             # Get Threads account data
             threads_response = await self.get("/threads/user_account", params={"user_id": user_id})
-            threads_data = await self.handle_api_response(threads_response, "Threads")
+            threads_data = await self.handle_api_response(threads_response, "Threads").data
             
             logger.info(f"Threads account data: {threads_data}")
             
@@ -201,11 +201,12 @@ class TelegramBot:
             message = THREADS_ACCOUNT_INFO_MESSAGE.format(
                 username=threads_data.get("username"),
                 bio=threads_data.get("biography", "No bio"),
-                followers_count=threads_data.get("followers_count"),
-                likes=threads_data.get("likes"),
-                replies=threads_data.get("replies"),
-                reposts=threads_data.get("reposts"),
-                quotes=threads_data.get("quotes"),
+                followers_count=threads_data.get("followers_count", 0),
+                likes=threads_data.get("likes", 0),
+                replies=threads_data.get("replies", 0),
+                reposts=threads_data.get("reposts", 0),
+                quotes=threads_data.get("quotes", 0),
+
             )
             
             await update.message.reply_photo(
@@ -246,9 +247,8 @@ class TelegramBot:
         try:
             # Get Twitter account data
             twitter_response = await self.get("/twitter/user_account", params={"user_id": user_id})
-            twitter_data = await self.handle_api_response(twitter_response, "Twitter")
+            twitter_data = await self.handle_api_response(twitter_response, "Twitter").data
             logger.info(f"Twitter account data: {twitter_data}")
-            
 
             logger.info(f"Twitter account data: {twitter_data}")
             
@@ -336,6 +336,8 @@ class TelegramBot:
         threads_auth_url = None
         twitter_auth_url = None
         
+        keyboard = [[]]
+        
         try:
             threads_response = await self.get("/auth/threads/is_connected", params={"user_id": user_id})
             logger.info(f"Threads response status: {threads_response.status_code}")
@@ -353,6 +355,14 @@ class TelegramBot:
             else:
                 threads_auth_url = f"{self.API_PUBLIC_URL}/auth/threads/disconnect?user_id={user_id}"
                 context.user_data[f'threads_auth_url_{user_id}'] = threads_auth_url
+                
+            keyboard[0].append(InlineKeyboardButton(
+                "🔗 Connect Threads", 
+                callback_data=f"connect_threads_{user_id}"
+            ) if not is_threads_connected else InlineKeyboardButton(
+                "⛓️‍💥‍ Disconnect Threads", 
+                callback_data=f"disconnect_threads_{user_id}"
+            ))
             
         except Exception as e:
             logger.error(f"Error in connect_command: {str(e)}")
@@ -375,29 +385,19 @@ class TelegramBot:
                 twitter_auth_url = f"{self.API_PUBLIC_URL}/auth/twitter/disconnect?user_id={user_id}"
                 context.user_data[f'twitter_auth_url_{user_id}'] = twitter_auth_url
                 
+            keyboard[0].append(InlineKeyboardButton(
+                "🔗 Connect Twitter", 
+                callback_data=f"connect_twitter_{user_id}"
+            ) if not is_twitter_connected else InlineKeyboardButton(
+                "⛓️‍💥 Disconnect Twitter", 
+                callback_data=f"disconnect_twitter_{user_id}"
+            ))
+                
         except Exception as e:
             logger.error(f"Error in connect_command: {str(e)}")
+
             await update.message.reply_text("❌ An error occurred while connecting your account. Please try again.", parse_mode='Markdown')
 
-            
-        keyboard = [
-            [
-                InlineKeyboardButton(
-                    "🔗 Connect Threads", 
-                    callback_data=f"connect_threads_{user_id}"
-                ) if not is_threads_connected else InlineKeyboardButton(
-                    "⛓️‍💥‍ Disconnect Threads", 
-                    callback_data=f"disconnect_threads_{user_id}"
-                ),
-                InlineKeyboardButton(
-                    "🔗 Connect Twitter", 
-                    callback_data=f"connect_twitter_{user_id}"
-                ) if not is_twitter_connected else InlineKeyboardButton(
-                    "⛓️‍💥 Disconnect Twitter", 
-                    callback_data=f"disconnect_twitter_{user_id}"
-                ),
-            ],
-        ]
 
         reply_markup = InlineKeyboardMarkup(keyboard)
         await update.message.reply_text(CONNECT_MESSAGE, reply_markup=reply_markup, parse_mode='Markdown')
