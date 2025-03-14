@@ -341,42 +341,56 @@ class TelegramBot:
             await update.message.reply_text("❌ An error occurred while connecting your account. Please try again.", parse_mode='Markdown')
             return
         
+        # First send a "processing" message
+        progress_message = await update.message.reply_text(
+            "🔄 Checking your account connections...",
+            parse_mode='Markdown'
+        )
+        
         is_threads_connected = False
         is_twitter_connected = False
         threads_auth_url = None
         twitter_auth_url = None
         
-        keyboard = [[]]
+        # Create a visual guide for connection options
+        connection_guide = (
+            "📱 *Connect Your Social Accounts*\n\n"
+            "Connect your accounts to enable cross-posting:\n\n"
+        )
         
         try:
             threads_response = await self.get("/auth/threads/is_connected", params={"user_id": user_id})
             logger.info(f"Threads response status: {threads_response.status_code}")
             
-           
             logger.info(f"Threads response text: {threads_response.text}")
             threads_response.raise_for_status()
             logger.info(f"Is threads connected: {threads_response.json()}")
             is_threads_connected = threads_response.json()
+            
+            connection_guide += f"🧵 *Threads*: {('✅ Connected' if is_threads_connected else '❌ Not connected')}\n"
             
             if not is_threads_connected:
                 threads_auth_url = await self.get("/auth/threads/connect", params={"user_id": user_id})
                 if threads_auth_url.json().get("url"):
                     context.user_data[f'threads_auth_url_{user_id}'] = threads_auth_url.json().get("url")
             else:
+                # If connected, try to get username
+                try:
+                    account_response = await self.get("/threads/user_account", params={"user_id": user_id})
+                    if account_response.status_code == 200:
+                        account_data = account_response.json().get("data", {})
+                        username = account_data.get("username")
+                        if username:
+                            connection_guide += f"└─ @{username}\n"
+                except Exception as e:
+                    logger.error(f"Error fetching Threads account info: {str(e)}")
+                
                 threads_auth_url = f"{self.API_PUBLIC_URL}/auth/threads/disconnect?user_id={user_id}"
                 context.user_data[f'threads_auth_url_{user_id}'] = threads_auth_url
-                
-            keyboard[0].append(InlineKeyboardButton(
-                "🔗 Connect Threads", 
-                callback_data=f"connect_threads_{user_id}"
-            ) if not is_threads_connected else InlineKeyboardButton(
-                "⛓️‍💥‍ Disconnect Threads", 
-                callback_data=f"disconnect_threads_{user_id}"
-            ))
             
         except Exception as e:
             logger.error(f"Error in connect_command: {str(e)}")
-            await update.message.reply_text("❌ An error occurred while connecting your account. Please try again.", parse_mode='Markdown')
+            connection_guide += f"🧵 *Threads*: ❓ Status unknown\n"
             
         try:
             twitter_response = await self.get("/auth/twitter/is_connected", params={"user_id": user_id})
@@ -387,30 +401,66 @@ class TelegramBot:
             logger.info(f"Is twitter connected: {twitter_response.json()}")
             is_twitter_connected = twitter_response.json()
             
+            connection_guide += f"🐦 *Twitter*: {('✅ Connected' if is_twitter_connected else '❌ Not connected')}\n"
+            
             if not is_twitter_connected:
                 twitter_auth_url = await self.get("/auth/twitter/connect", params={"user_id": user_id})
                 if twitter_auth_url.json().get("url"):
                     context.user_data[f'twitter_auth_url_{user_id}'] = twitter_auth_url.json().get("url")
             else:
+                # If connected, try to get username
+                try:
+                    account_response = await self.get("/twitter/user_account", params={"user_id": user_id})
+                    if account_response.status_code == 200:
+                        account_data = account_response.json().get("data", {})
+                        username = account_data.get("username")
+                        if username:
+                            connection_guide += f"└─ @{username}\n"
+                except Exception as e:
+                    logger.error(f"Error fetching Twitter account info: {str(e)}")
+                
                 twitter_auth_url = f"{self.API_PUBLIC_URL}/auth/twitter/disconnect?user_id={user_id}"
                 context.user_data[f'twitter_auth_url_{user_id}'] = twitter_auth_url
                 
-            keyboard[0].append(InlineKeyboardButton(
-                "🔗 Connect Twitter", 
-                callback_data=f"connect_twitter_{user_id}"
-            ) if not is_twitter_connected else InlineKeyboardButton(
-                "⛓️‍💥 Disconnect Twitter", 
-                callback_data=f"disconnect_twitter_{user_id}"
-            ))
-                
         except Exception as e:
             logger.error(f"Error in connect_command: {str(e)}")
+            connection_guide += f"🐦 *Twitter*: ❓ Status unknown\n"
 
-            await update.message.reply_text("❌ An error occurred while connecting your account. Please try again.", parse_mode='Markdown')
+        connection_guide += "\nSelect an option below to manage your connections:"
 
-
+        # Create multi-step keyboard
+        keyboard = []
+        
+        # Add platform-specific connection buttons
+        threads_row = []
+        twitter_row = []
+        
+        if is_threads_connected:
+            threads_row.append(InlineKeyboardButton("⛓️‍💥 Disconnect Threads", callback_data=f"disconnect_threads_{user_id}"))
+        else:
+            threads_row.append(InlineKeyboardButton("🔗 Connect Threads", callback_data=f"connect_threads_{user_id}"))
+        
+        if is_twitter_connected:
+            twitter_row.append(InlineKeyboardButton("⛓️‍💥 Disconnect Twitter", callback_data=f"disconnect_twitter_{user_id}"))
+        else:
+            twitter_row.append(InlineKeyboardButton("🔗 Connect Twitter", callback_data=f"connect_twitter_{user_id}"))
+        
+        keyboard.append(threads_row)
+        keyboard.append(twitter_row)
+        
+        # Add a "Done" button
+        keyboard.append([InlineKeyboardButton("✅ Done", callback_data=f"connection_done_{user_id}")])
+        
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(CONNECT_MESSAGE, reply_markup=reply_markup, parse_mode='Markdown')
+        
+        # Update the progress message with the connection guide
+        await context.bot.edit_message_text(
+            chat_id=update.effective_chat.id,
+            message_id=progress_message.message_id,
+            text=connection_guide,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
 
     async def connect_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
@@ -623,7 +673,7 @@ class TelegramBot:
         try:
             # Check if user is allowed
             user_id = update.message.from_user.id
-            if str(user_id) not in settings.ALLOWED_USERS:
+            if str(update.message.from_user.username) not in settings.ALLOWED_USERS:
                 await update.message.reply_text(
                     "❌ You are not authorized to use this bot. Please contact the administrator.",
                     parse_mode='Markdown'
@@ -638,99 +688,108 @@ class TelegramBot:
                     parse_mode='Markdown'
                 )
                 return
-
-            try:
-                # Make API request
-                response = await handle_response(content, content_type, user_id)
                 
-                if response.status_code == 404:
-                    error_data = response.json()
-                    if "not connected" in error_data.get("message", "").lower():
-                        # Guide user to connect their accounts
-                        await update.message.reply_text(
-                            "🔗 Please connect your social media accounts first using the /connect command.",
-                            parse_mode='Markdown'
-                        )
-                        return
-                        
-                elif response.status_code == 401:
-                    error_data = response.json()
-                    if "expired" in error_data.get("message", "").lower():
-                        # Guide user to reconnect their accounts
-                        await update.message.reply_text(
-                            "⚠️ Your account connection has expired. Please reconnect using the /connect command.",
-                            parse_mode='Markdown'
-                        )
-                        return
-
-                elif response.status_code != 200:
-                    error_data = response.json()
-                    error_message = error_data.get("message", "Unknown error occurred")
+            # First validate connections and notify about expiring tokens
+            connection_status = await self.validate_connections(user_id, notify=True, update=update)
+            
+            # Check if any platform is connected and valid
+            available_platforms = []
+            for platform, status in connection_status.items():
+                if status["connected"] and status["valid"]:
+                    available_platforms.append(platform)
+            
+            if not available_platforms:
+                # No valid connections, guide user
+                expired_platforms = [p for p, s in connection_status.items() if s["connected"] and not s["valid"]]
+                if expired_platforms:
+                    # Some connections exist but are expired
+                    platform_list = ", ".join([p.capitalize() for p in expired_platforms])
                     await update.message.reply_text(
-                        f"❌ Error: {error_message}\n\nPlease try again or use /help for assistance.",
+                        f"⚠️ Your connections to {platform_list} have expired. Please use /connect to reconnect.",
                         parse_mode='Markdown'
                     )
-                    return
+                else:
+                    # No connections at all
+                    await update.message.reply_text(
+                        "🔗 Please connect your social media accounts first using the /connect command.",
+                        parse_mode='Markdown'
+                    )
+                return
 
-                # Handle successful response
-                response_data = response.json()
+            # Show processing message
+            progress_message = await update.message.reply_text(
+                "🔄 Processing your post...",
+                parse_mode='Markdown'
+            )
+            
+            # Post to all available platforms
+            results = []
+            
+            for platform in available_platforms:
+                try:
+                    if platform == "threads":
+                        response = await self.post("/threads/post", params={
+                            "user_id": user_id, 
+                            "message": content if content_type == "text" else "", 
+                            "image_url": content if content_type != "text" else None
+                        }, timeout=30)
+                        
+                        if response.status_code == 200 and response.json().get("status") == "success":
+                            thread_data = response.json().get("thread", {})
+                            thread_url = thread_data.get("permalink")
+                            thread_timestamp = thread_data.get("timestamp").replace("T", " ").replace("+0000", "")
+                            
+                            results.append(
+                                POST_SUCCESS_MESSAGE.format(
+                                    platform="Threads",
+                                    post_url=thread_url,
+                                    timestamp=thread_timestamp
+                                )
+                            )
+                        else:
+                            error_message = response.json().get("message", "Unknown error")
+                            results.append(f"❌ *Threads*: Failed to post - {error_message}")
+                    
+                    elif platform == "twitter":
+                        response = await self.post("/twitter/post", params={
+                            "user_id": user_id, 
+                            "message": content if content_type == "text" else "", 
+                            "image_url": content if content_type != "text" else None
+                        }, timeout=30)
+                        
+                        if response.status_code == 200 and response.json().get("status") == "success":
+                            tweet_data = response.json().get("tweet", {})
+                            tweet_url = tweet_data.get("permalink")
+                            tweet_timestamp = tweet_data.get("timestamp")
+                            
+                            results.append(
+                                POST_SUCCESS_MESSAGE.format(
+                                    platform="Twitter",
+                                    post_url=tweet_url,
+                                    timestamp=tweet_timestamp
+                                )
+                            )
+                        else:
+                            error_message = response.json().get("message", "Unknown error")
+                            results.append(f"❌ *Twitter*: Failed to post - {error_message}")
                 
-                if response_data.get("status") == "success":
-                    tweet_data = response_data.get("data", {}).get("tweet", {})
-                    thread_data = response_data.get("data", {}).get("thread", {})
-                    
-                    # Format success messages for each platform
-                    success_messages = []
-                    
-                    if tweet_data:
-                        tweet_url = tweet_data.get("permalink")
-                        tweet_timestamp = tweet_data.get("timestamp")
-                        success_messages.append(
-                            POST_SUCCESS_MESSAGE.format(
-                                platform="Twitter",
-                                post_url=tweet_url,
-                                timestamp=tweet_timestamp
-                            )
-                        )
-                    
-                    if thread_data:
-                        thread_url = thread_data.get("permalink")
-                        thread_timestamp = thread_data.get("timestamp")
-                        success_messages.append(
-                            POST_SUCCESS_MESSAGE.format(
-                                platform="Threads",
-                                post_url=thread_url,
-                                timestamp=thread_timestamp
-                            )
-                        )
-                    
-                    if success_messages:
-                        await update.message.reply_text(
-                            "\n\n".join(success_messages),
-                            parse_mode='Markdown'
-                        )
-                    else:
-                        await update.message.reply_text(
-                            "✅ Message processed successfully, but no posts were created.",
-                            parse_mode='Markdown'
-                        )
-
-            except httpx.RequestError as e:
-                logger.error(f"HTTP Request Error: {str(e)}")
-                await update.message.reply_text(
-                    "❌ Network error occurred. Please try again later.",
+                except Exception as e:
+                    logger.error(f"Error posting to {platform}: {str(e)}")
+                    results.append(f"❌ *{platform.capitalize()}*: Error - {str(e)}")
+            
+            # Show results
+            if results:
+                await context.bot.edit_message_text(
+                    chat_id=update.effective_chat.id,
+                    message_id=progress_message.message_id,
+                    text="\n\n".join(results),
                     parse_mode='Markdown'
                 )
-            except httpx.TimeoutException:
-                logger.error("Request timed out")
-                await update.message.reply_text(
-                    "⏳ Request timed out. Please try again.",
-                    parse_mode='Markdown'
-                )
-            except json.JSONDecodeError:
-                logger.error("Invalid JSON response")
-                await update.message.reply_text(
-                    "❌ Error processing server response. Please try again.",
+            else:
+                await context.bot.edit_message_text(
+                    chat_id=update.effective_chat.id,
+                    message_id=progress_message.message_id,
+                    text="❌ Failed to post content. Please try again.",
                     parse_mode='Markdown'
                 )
 
@@ -746,97 +805,345 @@ class TelegramBot:
         Handle /post command.
         
         Description:
-            This method posts a message to Threads and Twitter.
+            This method posts a message to Threads and Twitter with platform selection.
         
         Args:
             update: Update object
             context: Context object
         """
-        # Post a thread to Threads and read the query params
-        logger.info(f"Begin postting a message to Threads for user {update.message.from_user.id}")
         user_id = update.message.from_user.id
-        message = " ".join(context.args) # Get the message from the command args - Does not correctly handle spaces and new lines
-        message = update.message.text_markdown.replace("/post", "") # Get the message from the command text
         
-        message = message.strip()
-        is_message_empty = len(message) == 0 or message == None
+        # Check if message is a reply to the platform selection
+        if "platform_selection" in context.user_data and update.message.reply_to_message:
+            if update.message.reply_to_message.message_id == context.user_data["platform_selection"]["message_id"]:
+                # This is content to post after platform selection
+                platforms = context.user_data["platform_selection"]["platforms"]
+                await self.process_post(update, context, platforms)
+                del context.user_data["platform_selection"]
+                return
         
-        if len(update.message.photo) > 0:
-            image_url = update.message.photo
+        # Get message content
+        message = update.message.text_markdown.replace("/post", "").strip()
+        has_media = len(update.message.photo) > 0 or update.message.document or update.message.video
+        
+        # First send a "processing" message
+        progress_message = await update.message.reply_text(
+            "🔄 Checking your account connections...",
+            parse_mode='Markdown'
+        )
+        
+        # Check connections first
+        threads_connected = False
+        twitter_connected = False
+        
+        try:
+            # Check Threads connection
+            threads_response = await self.get("/auth/threads/is_connected", params={"user_id": user_id})
+            threads_connected = threads_response.json() if threads_response.status_code == 200 else False
+            
+            # Check Twitter connection
+            twitter_response = await self.get("/auth/twitter/is_connected", params={"user_id": user_id})
+            twitter_connected = twitter_response.json() if twitter_response.status_code == 200 else False
+            
+            # If no platforms connected, guide user
+            if not threads_connected and not twitter_connected:
+                await context.bot.edit_message_text(
+                    chat_id=update.effective_chat.id,
+                    message_id=progress_message.message_id,
+                    text="❌ You don't have any social media accounts connected. Use /connect to link your accounts first.",
+                    parse_mode='Markdown'
+                )
+                return
+            
+            # Create platform selection message
+            platform_message = (
+                "📱 *New Post*\n\n"
+                "Select where you'd like to post:"
+            )
+            
+            # Create platform selection keyboard
+            keyboard = []
+            if threads_connected and twitter_connected:
+                keyboard = [
+                    [
+                        InlineKeyboardButton("🧵 Threads", callback_data=f"post_platform_threads_{user_id}"),
+                        InlineKeyboardButton("🐦 Twitter", callback_data=f"post_platform_twitter_{user_id}")
+                    ],
+                    [InlineKeyboardButton("🔄 Both Platforms", callback_data=f"post_platform_both_{user_id}")]
+                ]
+            elif threads_connected:
+                keyboard = [[InlineKeyboardButton("🧵 Post to Threads", callback_data=f"post_platform_threads_{user_id}")]]
+            elif twitter_connected:
+                keyboard = [[InlineKeyboardButton("🐦 Post to Twitter", callback_data=f"post_platform_twitter_{user_id}")]]
+                
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Check if there's already content in the command
+            if message or has_media:
+                # Content already provided with command
+                platform_message += "\n\nYour content is ready to post."
+                
+                # Store the message with content
+                context.user_data["pending_post"] = {
+                    "message": message,
+                    "has_media": has_media,
+                    "media_items": update.message.photo or update.message.document or update.message.video,
+                    "message_id": progress_message.message_id
+                }
+            else:
+                # No content yet, ask for platform first
+                platform_message += "\n\nAfter selecting, send your content as a reply."
+                
+                # Store the selection message to identify the reply later
+                context.user_data["platform_selection"] = {
+                    "message_id": progress_message.message_id,
+                    "platforms": None  # Will be set in the callback
+                }
+            
+            # Update the progress message with platform selection
+            await context.bot.edit_message_text(
+                chat_id=update.effective_chat.id,
+                message_id=progress_message.message_id,
+                text=platform_message,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+                
+        except Exception as e:
+            logger.error(f"Error in post_command: {str(e)}")
+            await context.bot.edit_message_text(
+                chat_id=update.effective_chat.id,
+                message_id=progress_message.message_id,
+                text="❌ Error checking your connections. Please try again.",
+                parse_mode='Markdown'
+            )
+    
+    async def post_platform_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Handle platform selection for posting.
+        
+        Description:
+            This method processes the platform selection for posting.
+        
+        Args:
+            update: Update object
+            context: Context object
+        """
+        query = update.callback_query
+        await query.answer()  # Answer the callback query to remove loading state
+        
+        # Extract platform choice and user_id
+        _, _, platform, user_id = query.data.split('_')
+        
+        if "pending_post" in context.user_data:
+            # Content was already provided with the command
+            post_data = context.user_data["pending_post"]
+            
+            # Show processing status
+            await query.edit_message_text(
+                "🔄 Posting your content...",
+                parse_mode='Markdown'
+            )
+            
+            # Process the post based on selected platform
+            if platform == "both":
+                platforms = ["threads", "twitter"]
+            else:
+                platforms = [platform]
+                
+            # Get the message content
+            message = post_data["message"]
+            media_items = post_data["media_items"] if post_data["has_media"] else None
+            
+            # Post to selected platforms
+            results = []
+            
+            for plat in platforms:
+                try:
+                    if plat == "threads":
+                        response = await self.post("/threads/post", params={
+                            "user_id": user_id, 
+                            "message": message, 
+                            "image_url": media_items[0].file_id if media_items else None
+                        }, timeout=30)
+                        
+                        if response.status_code == 200 and response.json().get("status") == "success":
+                            thread_data = response.json().get("thread", {})
+                            thread_url = thread_data.get("permalink")
+                            thread_timestamp = thread_data.get("timestamp").replace("T", " ").replace("+0000", "")
+                            
+                            results.append(
+                                POST_SUCCESS_MESSAGE.format(
+                                    platform="Threads",
+                                    post_url=thread_url,
+                                    timestamp=thread_timestamp
+                                )
+                            )
+                        else:
+                            error_message = response.json().get("message", "Unknown error")
+                            results.append(f"❌ *Threads*: Failed to post - {error_message}")
+                    
+                    elif plat == "twitter":
+                        response = await self.post("/twitter/post", params={
+                            "user_id": user_id, 
+                            "message": message, 
+                            "image_url": media_items[0].file_id if media_items else None
+                        }, timeout=30)
+                        
+                        if response.status_code == 200 and response.json().get("status") == "success":
+                            tweet_data = response.json().get("tweet", {})
+                            tweet_url = tweet_data.get("permalink")
+                            tweet_timestamp = tweet_data.get("timestamp")
+                            
+                            results.append(
+                                POST_SUCCESS_MESSAGE.format(
+                                    platform="Twitter",
+                                    post_url=tweet_url,
+                                    timestamp=tweet_timestamp
+                                )
+                            )
+                        else:
+                            error_message = response.json().get("message", "Unknown error")
+                            results.append(f"❌ *Twitter*: Failed to post - {error_message}")
+                
+                except Exception as e:
+                    logger.error(f"Error posting to {plat}: {str(e)}")
+                    results.append(f"❌ *{plat.capitalize()}*: Error - {str(e)}")
+            
+            # Show results
+            if results:
+                await query.edit_message_text(
+                    "\n\n".join(results),
+                    parse_mode='Markdown'
+                )
+            else:
+                await query.edit_message_text(
+                    "❌ Failed to post content. Please try again.",
+                    parse_mode='Markdown'
+                )
+            
+            # Clean up
+            del context.user_data["pending_post"]
+        
         else:
-            image_url = None
+            # No content yet, update the selection message and prompt for content
+            if platform == "both":
+                platforms = ["threads", "twitter"]
+                platform_names = "Threads and Twitter"
+            else:
+                platforms = [platform]
+                platform_names = "Threads" if platform == "threads" else "Twitter"
+                
+            # Update selection message
+            await query.edit_message_text(
+                f"📝 Please send the content you want to post to {platform_names} as a reply to this message.\n\nYou can include text and/or media.",
+                parse_mode='Markdown'
+            )
             
-        logger.info(f"Message: {message} - Message Empty: {is_message_empty} - Message Length: {len(message)}. Photo: {update.message.photo} - {image_url}")
-            
-        if is_message_empty and not image_url:
-            await update.message.reply_text("❌ Please provide an text or image to post.", parse_mode='Markdown')
+            # Store the selection for handling the next message
+            if "platform_selection" in context.user_data:
+                context.user_data["platform_selection"]["platforms"] = platforms
+    
+    async def process_post(self, update: Update, context: ContextTypes.DEFAULT_TYPE, platforms: list):
+        """
+        Process a post to selected platforms.
+        
+        Description:
+            This method processes a post to the selected platforms.
+        
+        Args:
+            update: Update object
+            context: Context object
+            platforms: List of platforms to post to
+        """
+        user_id = update.message.from_user.id
+        
+        # Get message content
+        content, content_type = get_message_content(update.message)
+        
+        if not content:
+            await update.message.reply_text(
+                "❌ Unsupported message type. Please send text or media.",
+                parse_mode='Markdown'
+            )
             return
         
-        #! TODO: Parallelize the requests to Threads and Twitter
-        try:
-            is_connected = await self.get("/threads/is_connected", params={"user_id": user_id})
-            logger.info(f"Is connected: {is_connected}")
-            
-            if is_connected:
-                response = await self.post("/threads/post", params={"user_id": user_id, "message": message, "image_url": image_url}, timeout=30)
-                
-                logger.info(f"Response: {response.json()}")
-                await self.handle_api_response(response, "Threads")
-                
-                if response.json().get("status") == "success":
-                    thread_url = response.json().get("thread").get("permalink")
-                    # Parse 2025-01-04T11:39:58+0000 to 2025-01-04 11:39:58
-                    thread_timestamp = response.json().get("thread").get("timestamp").replace("T", " ").replace("+0000", "")
-                    logger.info(f"Thread URL: {thread_url}")
+        # Show processing message
+        progress_message = await update.message.reply_text(
+            "🔄 Processing your post...",
+            parse_mode='Markdown'
+        )
+        
+        # Post to selected platforms
+        results = []
+        
+        for platform in platforms:
+            try:
+                if platform == "threads":
+                    response = await self.post("/threads/post", params={
+                        "user_id": user_id, 
+                        "message": content if content_type == "text" else "", 
+                        "image_url": content if content_type != "text" else None
+                    }, timeout=30)
                     
-                    success_message = POST_SUCCESS_MESSAGE.format(post_url=thread_url, timestamp=thread_timestamp, platform="Threads")
-                    await update.message.reply_text(success_message, parse_mode='Markdown')
-                elif response.json().get("status") == "missing":
-                    # await update.message.reply_text("❌ User not connected to Threads", parse_mode='Markdown')
-                    pass
-                else:
-                    await update.message.reply_text("❌ Failed to post a thread. Please try again.", parse_mode='Markdown')
+                    if response.status_code == 200 and response.json().get("status") == "success":
+                        thread_data = response.json().get("thread", {})
+                        thread_url = thread_data.get("permalink")
+                        thread_timestamp = thread_data.get("timestamp").replace("T", " ").replace("+0000", "")
+                        
+                        results.append(
+                            POST_SUCCESS_MESSAGE.format(
+                                platform="Threads",
+                                post_url=thread_url,
+                                timestamp=thread_timestamp
+                            )
+                        )
+                    else:
+                        error_message = response.json().get("message", "Unknown error")
+                        results.append(f"❌ *Threads*: Failed to post - {error_message}")
                 
-        except Exception as e:
-            logger.error(f"Error posting thread: {str(e)}")
-            await update.message.reply_text("❌ Failed to post a thread. Please try again.", parse_mode='Markdown')
-            
-        logger.info(f"Begin postting a message to Twitter for user {update.message.from_user.id}")
-        try:
-            # Check if user is connected to Twitter
-            is_connected = await self.get("/twitter/is_connected", params={"user_id": user_id})
-            logger.info(f"Is connected: {is_connected}")
-            
-            await self.handle_api_response(response, "Twitter")
-
-            if is_connected:
-                response = await self.post("/twitter/post", params={"user_id": user_id, "message": message, "image_url": image_url}, timeout=30)
-                
-                if response.status_code != 200 or response.json().get("status") == "error":
-                    await update.message.reply_text("❌ Failed to post a tweet. Please try again.", parse_mode='Markdown')
-                    return
-                
-                if response.json().get("status") == "success":
-                    # {'edit_history_tweet_ids': ['1875842406307737626'], 'id': '1875842406307737626', 'text': 'yolo'}
-                    logger.info(f"Response: {response.json()}")
+                elif platform == "twitter":
+                    response = await self.post("/twitter/post", params={
+                        "user_id": user_id, 
+                        "message": content if content_type == "text" else "", 
+                        "image_url": content if content_type != "text" else None
+                    }, timeout=30)
                     
-                    tweet = response.json().get("tweet")
-                    tweet_id = tweet.get("id")
-                    tweet_text = tweet.get("text")
-                    tweet_url = tweet.get("permalink")
-                    tweet_timestamp = tweet.get("timestamp")
-                    
-                    success_message = POST_SUCCESS_MESSAGE.format(post_url=tweet_url, timestamp=tweet_timestamp, platform="Twitter")
-                    await update.message.reply_text(success_message, parse_mode='Markdown')
-                elif response.json().get("status") == "missing":
-                    # await update.message.reply_text("❌ User not connected to Twitter", parse_mode='Markdown')
-                    pass
-                else:
-                    await update.message.reply_text("❌ Failed to post a tweet. Please try again.", parse_mode='Markdown')
+                    if response.status_code == 200 and response.json().get("status") == "success":
+                        tweet_data = response.json().get("tweet", {})
+                        tweet_url = tweet_data.get("permalink")
+                        tweet_timestamp = tweet_data.get("timestamp")
+                        
+                        results.append(
+                            POST_SUCCESS_MESSAGE.format(
+                                platform="Twitter",
+                                post_url=tweet_url,
+                                timestamp=tweet_timestamp
+                            )
+                        )
+                    else:
+                        error_message = response.json().get("message", "Unknown error")
+                        results.append(f"❌ *Twitter*: Failed to post - {error_message}")
             
-        except Exception as e:
-            logger.error(f"Error posting tweet: {str(e)}")
-            await update.message.reply_text("❌ Failed to post a tweet. Please try again.", parse_mode='Markdown')
+            except Exception as e:
+                logger.error(f"Error posting to {platform}: {str(e)}")
+                results.append(f"❌ *{platform.capitalize()}*: Error - {str(e)}")
+        
+        # Show results
+        if results:
+            await context.bot.edit_message_text(
+                chat_id=update.effective_chat.id,
+                message_id=progress_message.message_id,
+                text="\n\n".join(results),
+                parse_mode='Markdown'
+            )
+        else:
+            await context.bot.edit_message_text(
+                chat_id=update.effective_chat.id,
+                message_id=progress_message.message_id,
+                text="❌ Failed to post content. Please try again.",
+                parse_mode='Markdown'
+            )
 
     async def handle_api_response(self, response, platform: str):
         """Handle API response and raise appropriate exceptions"""
@@ -878,11 +1185,403 @@ class TelegramBot:
                 details={"raw_response": response.text}
             )
 
+    async def connection_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Show a visual dashboard of connected platforms and their status.
+        
+        Description:
+            This method provides a visual representation of the user's connected accounts
+            and their current status.
+        
+        Args:
+            update: Update object
+            context: Context object
+        """
+        user_id = update.message.from_user.id
+        
+        # Create a visual status board with emojis
+        status_message = "📱 *Your Connected Accounts*\n\n"
+        
+        # First send a "processing" message
+        progress_message = await update.message.reply_text(
+            "🔄 Checking your account connections...",
+            parse_mode='Markdown'
+        )
+        
+        # Check Threads status
+        try:
+            threads_response = await self.get("/auth/threads/is_connected", params={"user_id": user_id})
+            is_threads_connected = threads_response.json() if threads_response.status_code == 200 else False
+            
+            status_message += "🧵 *Threads*: " + ("✅ Connected" if is_threads_connected else "❌ Not connected") + "\n"
+            
+            # If connected, add account info
+            if is_threads_connected:
+                try:
+                    account_response = await self.get("/threads/user_account", params={"user_id": user_id})
+                    if account_response.status_code == 200:
+                        account_data = account_response.json().get("data", {})
+                        username = account_data.get("username")
+                        if username:
+                            status_message += f"└─ @{username}\n"
+                except Exception as e:
+                    logger.error(f"Error fetching Threads account info: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error checking Threads connection: {str(e)}")
+            status_message += "🧵 *Threads*: ❓ Status unknown\n"
+        
+        # Check Twitter status
+        try:
+            twitter_response = await self.get("/auth/twitter/is_connected", params={"user_id": user_id})
+            is_twitter_connected = twitter_response.json() if twitter_response.status_code == 200 else False
+            
+            status_message += "\n🐦 *Twitter*: " + ("✅ Connected" if is_twitter_connected else "❌ Not connected") + "\n"
+            
+            # If connected, add account info
+            if is_twitter_connected:
+                try:
+                    account_response = await self.get("/twitter/user_account", params={"user_id": user_id})
+                    if account_response.status_code == 200:
+                        account_data = account_response.json().get("data", {})
+                        username = account_data.get("username")
+                        if username:
+                            status_message += f"└─ @{username}\n"
+                except Exception as e:
+                    logger.error(f"Error fetching Twitter account info: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error checking Twitter connection: {str(e)}")
+            status_message += "🐦 *Twitter*: ❓ Status unknown\n"
+        
+        # Add action buttons
+        keyboard = [[
+            InlineKeyboardButton("🔄 Refresh Status", callback_data=f"refresh_status_{user_id}"),
+            InlineKeyboardButton("🔗 Manage Connections", callback_data=f"manage_connections_{user_id}")
+        ]]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Update the progress message with the status
+        await context.bot.edit_message_text(
+            chat_id=update.effective_chat.id,
+            message_id=progress_message.message_id,
+            text=status_message,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+
+    async def refresh_status_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Handle refresh_status callback.
+        
+        Description:
+            This method refreshes the connection status dashboard.
+        
+        Args:
+            update: Update object
+            context: Context object
+        """
+        query = update.callback_query
+        await query.answer()  # Answer the callback query to remove loading state
+        
+        # Extract user_id from callback_data
+        _, _, user_id = query.data.split('_')
+        
+        # Create a visual status board with emojis
+        status_message = "📱 *Your Connected Accounts*\n\n"
+        
+        # Show processing indicator
+        await query.edit_message_text(
+            "🔄 Refreshing your account connections...",
+            parse_mode='Markdown'
+        )
+        
+        # Check Threads status
+        try:
+            threads_response = await self.get("/auth/threads/is_connected", params={"user_id": user_id})
+            is_threads_connected = threads_response.json() if threads_response.status_code == 200 else False
+            
+            status_message += "🧵 *Threads*: " + ("✅ Connected" if is_threads_connected else "❌ Not connected") + "\n"
+            
+            # If connected, add account info
+            if is_threads_connected:
+                try:
+                    account_response = await self.get("/threads/user_account", params={"user_id": user_id})
+                    if account_response.status_code == 200:
+                        account_data = account_response.json().get("data", {})
+                        username = account_data.get("username")
+                        if username:
+                            status_message += f"└─ @{username}\n"
+                except Exception as e:
+                    logger.error(f"Error fetching Threads account info: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error checking Threads connection: {str(e)}")
+            status_message += "🧵 *Threads*: ❓ Status unknown\n"
+        
+        # Check Twitter status
+        try:
+            twitter_response = await self.get("/auth/twitter/is_connected", params={"user_id": user_id})
+            is_twitter_connected = twitter_response.json() if twitter_response.status_code == 200 else False
+            
+            status_message += "\n🐦 *Twitter*: " + ("✅ Connected" if is_twitter_connected else "❌ Not connected") + "\n"
+            
+            # If connected, add account info
+            if is_twitter_connected:
+                try:
+                    account_response = await self.get("/twitter/user_account", params={"user_id": user_id})
+                    if account_response.status_code == 200:
+                        account_data = account_response.json().get("data", {})
+                        username = account_data.get("username")
+                        if username:
+                            status_message += f"└─ @{username}\n"
+                except Exception as e:
+                    logger.error(f"Error fetching Twitter account info: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error checking Twitter connection: {str(e)}")
+            status_message += "🐦 *Twitter*: ❓ Status unknown\n"
+        
+        # Add action buttons
+        keyboard = [[
+            InlineKeyboardButton("🔄 Refresh Status", callback_data=f"refresh_status_{user_id}"),
+            InlineKeyboardButton("🔗 Manage Connections", callback_data=f"manage_connections_{user_id}")
+        ]]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Update the message with the refreshed status
+        await query.edit_message_text(
+            text=status_message,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    
+    async def manage_connections_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Handle manage_connections callback.
+        
+        Description:
+            This method shows a menu for managing connections.
+        
+        Args:
+            update: Update object
+            context: Context object
+        """
+        query = update.callback_query
+        await query.answer()  # Answer the callback query to remove loading state
+        
+        # Extract user_id from callback_data
+        _, _, user_id = query.data.split('_')
+        
+        # Show processing indicator
+        await query.edit_message_text(
+            "🔄 Loading connection management options...",
+            parse_mode='Markdown'
+        )
+        
+        # Check current connection status
+        is_threads_connected = False
+        is_twitter_connected = False
+        
+        try:
+            threads_response = await self.get("/auth/threads/is_connected", params={"user_id": user_id})
+            is_threads_connected = threads_response.json() if threads_response.status_code == 200 else False
+        except Exception as e:
+            logger.error(f"Error checking Threads connection: {str(e)}")
+        
+        try:
+            twitter_response = await self.get("/auth/twitter/is_connected", params={"user_id": user_id})
+            is_twitter_connected = twitter_response.json() if twitter_response.status_code == 200 else False
+        except Exception as e:
+            logger.error(f"Error checking Twitter connection: {str(e)}")
+        
+        # Create connection management message
+        connection_guide = (
+            "📱 *Manage Your Social Accounts*\n\n"
+            "Connect or disconnect your accounts:\n\n"
+            f"🧵 *Threads*: {('✅ Connected' if is_threads_connected else '❌ Not connected')}\n"
+            f"🐦 *Twitter*: {('✅ Connected' if is_twitter_connected else '❌ Not connected')}\n\n"
+            "Select an option below:"
+        )
+        
+        # Create multi-step keyboard
+        keyboard = []
+        
+        # Add platform-specific connection buttons
+        threads_row = []
+        twitter_row = []
+        
+        if is_threads_connected:
+            threads_row.append(InlineKeyboardButton("⛓️‍💥 Disconnect Threads", callback_data=f"disconnect_threads_{user_id}"))
+        else:
+            threads_row.append(InlineKeyboardButton("🔗 Connect Threads", callback_data=f"connect_threads_{user_id}"))
+        
+        if is_twitter_connected:
+            twitter_row.append(InlineKeyboardButton("⛓️‍💥 Disconnect Twitter", callback_data=f"disconnect_twitter_{user_id}"))
+        else:
+            twitter_row.append(InlineKeyboardButton("🔗 Connect Twitter", callback_data=f"connect_twitter_{user_id}"))
+        
+        keyboard.append(threads_row)
+        keyboard.append(twitter_row)
+        
+        # Add a "Back" button
+        keyboard.append([InlineKeyboardButton("⬅️ Back to Status", callback_data=f"refresh_status_{user_id}")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Update the message with connection management options
+        await query.edit_message_text(
+            text=connection_guide,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+
+    async def connection_done_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Handle connection_done callback.
+        
+        Description:
+            This method is called when the user clicks the "Done" button in the connection management interface.
+            It provides a summary of the user's connections and next steps.
+        
+        Args:
+            update: Update object
+            context: Context object
+        """
+        query = update.callback_query
+        await query.answer()  # Answer the callback query to remove loading state
+        
+        # Extract user_id from callback_data
+        _, _, user_id = query.data.split('_')
+        
+        # Check current connection status
+        is_threads_connected = False
+        is_twitter_connected = False
+        
+        try:
+            threads_response = await self.get("/auth/threads/is_connected", params={"user_id": user_id})
+            is_threads_connected = threads_response.json() if threads_response.status_code == 200 else False
+        except Exception as e:
+            logger.error(f"Error checking Threads connection: {str(e)}")
+        
+        try:
+            twitter_response = await self.get("/auth/twitter/is_connected", params={"user_id": user_id})
+            is_twitter_connected = twitter_response.json() if twitter_response.status_code == 200 else False
+        except Exception as e:
+            logger.error(f"Error checking Twitter connection: {str(e)}")
+        
+        # Create summary message
+        summary = "📱 *Connection Summary*\n\n"
+        
+        if is_threads_connected or is_twitter_connected:
+            summary += "✅ *Connected Accounts:*\n"
+            if is_threads_connected:
+                summary += "- 🧵 Threads\n"
+            if is_twitter_connected:
+                summary += "- 🐦 Twitter\n"
+            
+            summary += "\n🔄 *What's Next?*\n"
+            summary += "- Send a message to post to your connected accounts\n"
+            summary += "- Use /post to create a new post\n"
+            summary += "- Use /account to view your account details\n"
+            summary += "- Use /status to check your connections anytime\n"
+        else:
+            summary += "❌ *No Connected Accounts*\n\n"
+            summary += "You don't have any social media accounts connected.\n"
+            summary += "Use /connect to link your accounts first.\n"
+        
+        # Update the message with the summary
+        await query.edit_message_text(
+            text=summary,
+            parse_mode='Markdown'
+        )
+
+    async def status_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Handle /status command.
+        
+        Description:
+            This method is an alias for connection_status.
+        
+        Args:
+            update: Update object
+            context: Context object
+        """
+        await self.connection_status(update, context)
+
+    async def validate_connections(self, user_id: int, notify: bool = False, update: Update = None):
+        """
+        Validate all platform connections and return status.
+        
+        Description:
+            This method checks the validity of all platform connections and returns their status.
+            It can also notify the user if tokens are expiring soon.
+        
+        Args:
+            user_id: User ID
+            notify: Whether to notify the user if tokens are expiring soon
+            update: Update object (required if notify is True)
+            
+        Returns:
+            Dictionary with connection status for each platform
+        """
+        results = {
+            "threads": {"connected": False, "valid": False, "expires_in": None, "error": None},
+            "twitter": {"connected": False, "valid": False, "expires_in": None, "error": None}
+        }
+        
+        # Check Threads
+        try:
+            threads_response = await self.get("/auth/threads/is_connected", params={"user_id": user_id})
+            if threads_response.status_code == 200 and threads_response.json():
+                results["threads"]["connected"] = True
+                
+                # Check token validity
+                validity_response = await self.get("/threads/token_validity", params={"user_id": user_id})
+                if validity_response.status_code == 200:
+                    validity_data = validity_response.json()
+                    results["threads"]["valid"] = validity_data.get("valid", False)
+                    results["threads"]["expires_in"] = validity_data.get("expires_in")
+                    
+                    # Notify if token is expiring soon (less than 3 days)
+                    if notify and update and results["threads"]["valid"] and results["threads"]["expires_in"] < 259200:
+                        days_left = results["threads"]["expires_in"] // 86400
+                        await update.message.reply_text(
+                            f"⚠️ Your Threads connection will expire in {days_left} days. Consider reconnecting soon using /connect.",
+                            parse_mode='Markdown'
+                        )
+        except Exception as e:
+            logger.error(f"Error validating Threads connection: {str(e)}")
+            results["threads"]["error"] = str(e)
+        
+        # Check Twitter
+        try:
+            twitter_response = await self.get("/auth/twitter/is_connected", params={"user_id": user_id})
+            if twitter_response.status_code == 200 and twitter_response.json():
+                results["twitter"]["connected"] = True
+                
+                # Check token validity
+                validity_response = await self.get("/twitter/token_validity", params={"user_id": user_id})
+                if validity_response.status_code == 200:
+                    validity_data = validity_response.json()
+                    results["twitter"]["valid"] = validity_data.get("valid", False)
+                    results["twitter"]["expires_in"] = validity_data.get("expires_in")
+                    
+                    # Notify if token is expiring soon (less than 3 days)
+                    if notify and update and results["twitter"]["valid"] and results["twitter"]["expires_in"] < 259200:
+                        days_left = results["twitter"]["expires_in"] // 86400
+                        await update.message.reply_text(
+                            f"⚠️ Your Twitter connection will expire in {days_left} days. Consider reconnecting soon using /connect.",
+                            parse_mode='Markdown'
+                        )
+        except Exception as e:
+            logger.error(f"Error validating Twitter connection: {str(e)}")
+            results["twitter"]["error"] = str(e)
+        
+        return results
 
     # Bot Handlers
     def add_handlers(self):
         # Commands with user restriction
-        if not settings.ALLOWED_USERS or settings.ALLOWED_USERS[0] == "all":
+        if not settings.ALLOWED_USERS or "all" in settings.ALLOWED_USERS:
             allowed_users_filter = filters.ALL
         else:
             allowed_users_filter = filters.User(username=settings.ALLOWED_USERS)
@@ -917,10 +1616,28 @@ class TelegramBot:
             CommandHandler("post", self.post, filters=allowed_users_filter)
         )
         self.application.add_handler(
+            CommandHandler("connection_status", self.connection_status, filters=allowed_users_filter)
+        )
+        self.application.add_handler(
+            CommandHandler("status", self.status_command, filters=allowed_users_filter)
+        )
+        self.application.add_handler(
             MessageHandler(filters.ALL & allowed_users_filter, self.handle_message)
         )
         self.application.add_handler(
             CommandHandler("unknown", self.unknown, filters=filters.COMMAND)
+        )
+        self.application.add_handler(
+            CallbackQueryHandler(self.refresh_status_callback, pattern="^refresh_status_")
+        )
+        self.application.add_handler(
+            CallbackQueryHandler(self.manage_connections_callback, pattern="^manage_connections_")
+        )
+        self.application.add_handler(
+            CallbackQueryHandler(self.connection_done_callback, pattern="^connection_done_")
+        )
+        self.application.add_handler(
+            CallbackQueryHandler(self.post_platform_callback, pattern="^post_platform_")
         )
 
 # Main
