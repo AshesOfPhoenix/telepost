@@ -129,6 +129,7 @@ celerybeat.pid
 
 # Environments
 .env
+.env.production
 .venv
 env/
 venv/
@@ -179,3 +180,6 @@ cython_debug/
 
 # Test files
 test/
+
+# Cursor
+.cursor/

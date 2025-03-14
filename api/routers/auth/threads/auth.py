@@ -1,5 +1,8 @@
 # Threads Auth Controller
+from datetime import datetime, timezone
+import json
 from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi import HTTPException
 from api.utils.logger import logger
 from fastapi.routing import APIRoute
 from fastapi import APIRouter, Request
@@ -9,6 +12,7 @@ from pythreads.api import API
 from api.utils.config import get_settings
 from api.utils.prompts import SUCCESS_PAGE_HTML
 from api.base.auth_handler_base import AuthHandlerBase
+
 settings = get_settings()
 
 router = APIRouter()
@@ -29,6 +33,9 @@ class ThreadsAuthHandler(AuthHandlerBase):
         logger.info("Generating Threads authorization URL")
         params = dict(request.query_params)
         user_id = params.get('user_id')
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
         
         auth_url, state_key = Threads.authorization_url(self.config)
         
@@ -110,6 +117,9 @@ class ThreadsAuthHandler(AuthHandlerBase):
         params = dict(request.query_params)
         user_id = params.get('user_id')
         
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
+        
         self.clear_state(user_id)
         
         await self.db.delete_user_credentials(user_id, self.provider_id)
@@ -127,8 +137,20 @@ class ThreadsAuthHandler(AuthHandlerBase):
                 await api.threads()
             return True
         except:
-            return False
+            raise HTTPException(status_code=404, detail="User not connected to Threads")
 
+    async def check_credentials_expiration(self, user_id: int) -> bool:
+        """Check if credentials are expired"""
+        credentials = await self.get_user_credentials(user_id)
+        logger.info(f"Credentials: {credentials}")
+        if not credentials:
+            return False
+        
+        credentials = json.loads(credentials)
+        # "expiration": "2025-04-09T09:06:20.800964+00:00"
+        # convert to utc
+        expiration = datetime.strptime(credentials.get("expiration"), "%Y-%m-%dT%H:%M:%S.%f%z").astimezone(timezone.utc)
+        return expiration < datetime.now(timezone.utc)
 
 auth_handler = ThreadsAuthHandler()
 

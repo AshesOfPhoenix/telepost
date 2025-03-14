@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any
 
-from fastapi import Request
+from fastapi import HTTPException, Request, Response
 from api.db.database import db
 
 class SocialController(ABC):
@@ -14,7 +14,7 @@ class SocialController(ABC):
         self.provider_id = provider_id
         self.db = db
         
-    async def get_user_credentials(self, user_id: int) -> Dict[str, Any]:
+    async def get_user_credentials(self, user_id: int, provider_id: str | None = None) -> Dict[str, Any]:
         """
         Retrieve user credentials for the social media platform.
         
@@ -24,11 +24,26 @@ class SocialController(ABC):
         Returns:
             Dict containing user credentials
         """
-        credentials = await self.db.get_user_credentials(user_id, self.provider_id)
-        return credentials
+        try:
+            credentials = await self.db.get_user_credentials(
+                user_id, 
+                provider_id if provider_id is not None else self.provider_id
+            )
+            return credentials
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+        
+    async def delete_user_credentials(self, user_id: int, provider_id: str | None = None):
+        """
+        Delete user credentials for the social media platform.
+        """
+        try:
+            await self.db.delete_user_credentials(user_id, provider_id if provider_id is not None else self.provider_id)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
     
     @abstractmethod
-    async def get_user_account(self, user_id: int) -> Dict[str, Any]:
+    async def get_user_account(self, user_id: int) -> Response:
         """
         Retrieve user account information from the social platform.
         
@@ -41,7 +56,7 @@ class SocialController(ABC):
         pass
     
     @abstractmethod
-    async def post(self, request: Request) -> Dict[str, Any]:
+    async def post(self, request: Request) -> Response:
         """
         Post a thread to the social media platform.
         

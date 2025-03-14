@@ -6,7 +6,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # API Settings
-    API_BASE_URL: str
+    API_PUBLIC_URL: str
     API_VERSION: str = "v1"
     API_PREFIX: str = f"/api/{API_VERSION}"
     DEBUG: bool = False
@@ -26,9 +26,11 @@ class Settings(BaseSettings):
     @field_validator("ALLOWED_USERS", mode="after")
     @classmethod
     def parse_allowed_users(cls, v: str) -> List[str]:
-        if not v:
-            return []
-        return [x.strip() for x in v.split(",")]
+        # if v == "":
+        return ["kikoems"]
+        # if not v:
+        #     return None
+        # return [x.strip() for x in v.split(",")]
     
     # Redis (for rate limiting/caching)
     REDIS_URL: str | None = None
@@ -39,6 +41,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 @lru_cache()
 def get_settings() -> Settings:

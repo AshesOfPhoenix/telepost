@@ -1,12 +1,12 @@
 # Threads Auth Controller
+from datetime import datetime
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import HTTPException
 from api.utils.logger import logger
 from fastapi.routing import APIRoute
-from pydantic import BaseModel
 from fastapi import APIRouter, Request
 
 from api.utils.config import get_settings
-from api.db.database import db
 from pytwitter import Api
 from api.base.auth_handler_base import AuthHandlerBase
 from api.utils.prompts import SUCCESS_PAGE_HTML
@@ -31,6 +31,9 @@ class TwitterAuthHandler(AuthHandlerBase):
         logger.info(f"Generating Twitter authorization URL")
         params = dict(request.query_params)
         user_id = params.get('user_id')
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
         
         authorization_url, code_verifier, state = self.config.get_oauth2_authorize_url(
             redirect_uri=f"{settings.API_PUBLIC_URL}{settings.TWITTER_REDIRECT_URI}",
@@ -125,6 +128,9 @@ class TwitterAuthHandler(AuthHandlerBase):
         params = dict(request.query_params)
         user_id = params.get('user_id')
         
+        if not user_id:
+            raise HTTPException(status_code=400, detail="user_id is required")
+        
         self.clear_state(user_id)
         
         await self.db.delete_user_credentials(user_id, self.provider_id)
@@ -141,8 +147,14 @@ class TwitterAuthHandler(AuthHandlerBase):
             api.get_me()
             return True
         except Exception as e:
-            return False
+            raise HTTPException(status_code=500, detail=str(e))
 
+    async def check_credentials_expiration(self, user_id: int) -> bool:
+        """Check if credentials are expired"""
+        credentials = await self.get_user_credentials(user_id)
+        if not credentials:
+            return False
+        return credentials.get("expires_at", 0) < datetime.now().timestamp()
 
 auth_handler = TwitterAuthHandler()
 
