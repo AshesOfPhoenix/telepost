@@ -18,7 +18,7 @@ primary_region = 'fra'
 
 [env]
   PORT = 3000
-  API_PUBLIC_URL = "https://telepost-n571.onrender.com"
+  API_PUBLIC_URL = "https://telepost-api.fly.dev"
   TELEGRAM_BOTNAME = "xpostmanbot"
   ALLOWED_USERS = "kikoems"
 

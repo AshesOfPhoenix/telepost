@@ -18,10 +18,10 @@ primary_region = 'fra'
 
 [env]
   PORT = 3000
-  API_PUBLIC_URL = "https://telepost-n571.onrender.com"
+  API_PUBLIC_URL = "https://telepost-api.fly.dev"
   TELEGRAM_BOTNAME = "xpostmanbot"
   ALLOWED_USERS = "kikoems"
-  ALLOWED_HOSTS = "telepost-n571.onrender.com,telepost-bot.fly.dev"
+  ALLOWED_HOSTS = "telepost-api.fly.dev,telepost-bot.fly.dev"
   CORS_ALLOWED_ORIGINS = "https://telepost-bot.fly.dev"
   TWITTER_API_URL = "https://api.x.com"
   TWITTER_REDIRECT_URI = "/auth/twitter/callback"

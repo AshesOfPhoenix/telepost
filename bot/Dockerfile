@@ -13,7 +13,7 @@ RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY .env .env
+# COPY .env .env
 COPY ./bot/ ./bot/
 
 # Set environment variables
