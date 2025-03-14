@@ -36,7 +36,7 @@ def get_message_content(message):
     else:
         return None, "unknown"
 
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle errors in the Telegram Bot."""
     logger.error(f"Update {update} caused error {context.error}")
     
@@ -323,6 +323,13 @@ class TelegramBot:
         
         Description:
             This method sends a message with inline buttons for platform connection.
+            General flow is:
+            - Check if user is connected to any platform
+            - If not, generate auth url
+            - Send auth url to user via inline keyboard
+            - If user clicks on auth url, open browser to auth url
+            - If user is connected, show disconnect button
+            
         
         Args:
             update: Update object

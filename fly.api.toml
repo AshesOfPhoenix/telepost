@@ -1,0 +1,35 @@
+# fly.toml app configuration file generated for telepost on 2025-01-26T09:15:30+01:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'telepost-api'
+primary_region = 'fra'
+
+[build]
+  dockerfile = 'api/Dockerfile'
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+
+[env]
+  PORT = 3000
+  API_PUBLIC_URL = "https://telepost-n571.onrender.com"
+  TELEGRAM_BOTNAME = "xpostmanbot"
+  ALLOWED_USERS = "kikoems"
+  ALLOWED_HOSTS = "telepost-n571.onrender.com,telepost-bot.fly.dev"
+  CORS_ALLOWED_ORIGINS = "https://telepost-bot.fly.dev"
+  TWITTER_API_URL = "https://api.x.com"
+  TWITTER_REDIRECT_URI = "/auth/twitter/callback"
+  THREADS_API_URL = "https://api.threads.net"
+  THREADS_REDIRECT_URI = "/auth/threads/callback"
+  THREADS_SSL_CERT_FILEPATH = "/dev/null"
+  THREADS_SSL_KEY_FILEPATH = "/dev/null"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256
