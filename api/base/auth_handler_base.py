@@ -331,7 +331,11 @@ class AuthHandlerBase(ABC):
             params = dict(request.query_params)
             user_id = params.get('user_id')
             
-            self.clear_state(user_id)
+            # Try to clear state, but don't fail if state doesn't exist
+            try:
+                await self.clear_state(user_id)
+            except Exception as state_error:
+                pass
             
             # Get credentials first to check if they exist
             credentials = await self.get_user_credentials(user_id)
