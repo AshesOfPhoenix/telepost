@@ -25,7 +25,7 @@ class TwitterAuthHandler(AuthHandlerBase):
             scopes=["tweet.read", "tweet.write", "users.read"],
             callback_uri=f"{settings.API_PUBLIC_URL}{settings.TWITTER_REDIRECT_URI}"
         )
-        logger.info("TwitterAuthHandler initialized")
+        logger.info("✅ TwitterAuthHandler initialized")
     
     async def authorize(self, request: Request):
         """Command handler for /connect"""
@@ -34,7 +34,15 @@ class TwitterAuthHandler(AuthHandlerBase):
         user_id = params.get('user_id')
         
         if not user_id:
-            raise HTTPException(status_code=400, detail="user_id is required")
+            raise HTTPException(
+                status_code=400, 
+                detail={
+                    "status": "error",
+                    "code": 400,
+                    "message": "User ID is required",
+                    "platform": self.provider_id
+                }
+            )
         
         authorization_url, code_verifier, state = self.config.get_oauth2_authorize_url(
             redirect_uri=f"{settings.API_PUBLIC_URL}{settings.TWITTER_REDIRECT_URI}",
@@ -63,7 +71,7 @@ class TwitterAuthHandler(AuthHandlerBase):
         
         if not user_id:
             logger.error("Invalid state or user_id not found")
-            bot_url = f"https://t.me/{settings.TELEGRAM_BOTNAME}?start=YOYOYO"
+            bot_url = f"https://t.me/{settings.TELEGRAM_BOTNAME}?start=auth_error_invalid_state"
             return RedirectResponse(url=bot_url)
         
         try:
@@ -91,8 +99,7 @@ class TwitterAuthHandler(AuthHandlerBase):
             self.clear_state(user_id)
             
             # Redirect to Telegram bot with success parameter
-            bot_url = f"https://t.me/{settings.TELEGRAM_BOTNAME}?start=YOYOYO"
-            # return RedirectResponse(url=bot_url)
+            bot_url = f"https://t.me/{settings.TELEGRAM_BOTNAME}?start=auth_success_{user_id}"
             
             return HTMLResponse(
                 content=SUCCESS_PAGE_HTML.format(
@@ -107,7 +114,7 @@ class TwitterAuthHandler(AuthHandlerBase):
             return HTMLResponse(
                 content=SUCCESS_PAGE_HTML.format(
                     platform="Twitter",
-                    redirect_url=f"https://t.me/{settings.TELEGRAM_BOTNAME}?start=YOYOYO"
+                    redirect_url=f"https://t.me/{settings.TELEGRAM_BOTNAME}?start=auth_error_{user_id}"
                 ).replace(
                     "Successfully Connected!",
                     "Connection Failed"
@@ -144,28 +151,145 @@ class TwitterAuthHandler(AuthHandlerBase):
             return False
         
         try:
-            api = Api(client_id=settings.TWITTER_CLIENT_ID, client_secret=settings.TWITTER_CLIENT_SECRET, oauth_flow=True)
-            api.get_me()
+            if isinstance(credentials, str):
+                credentials = json.loads(credentials)
+                
+            # Check if token is expired
+            if credentials.get("expires_at", 0) < datetime.now().timestamp():
+                await self.delete_user_credentials(user_id)
+                return False
+                
+            # Create API client with access token
+            my_api = Api(
+                bearer_token=credentials.get("access_token"),
+                client_id=settings.TWITTER_CLIENT_ID,
+                client_secret=settings.TWITTER_CLIENT_SECRET,
+                oauth_flow=True
+            )
+            
+            # Make a lightweight call to verify token
+            my_api.get_me()
             return True
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            logger.error(f"Error verifying Twitter credentials: {str(e)}")
+            return False
 
     async def check_credentials_expiration(self, user_id: int) -> bool:
         """Check if credentials are expired"""
         credentials = await self.get_user_credentials(user_id)
         if not credentials:
+            return True
+            
+        try:
+            if isinstance(credentials, str):
+                credentials = json.loads(credentials)
+                
+            # Twitter uses expires_at in UNIX timestamp format
+            expires_at = credentials.get("expires_at", 0)
+            return expires_at < datetime.now().timestamp()
+        except Exception as e:
+            logger.error(f"Error checking Twitter credentials expiration: {str(e)}")
+            return True
+            
+    def calculate_expiration_time(self, credentials) -> int:
+        """Calculate time until token expiration in seconds"""
+        if not credentials:
+            return 0
+            
+        try:
+            if isinstance(credentials, str):
+                credentials = json.loads(credentials)
+                
+            # Twitter uses expires_at timestamp
+            expires_at = credentials.get("expires_at", 0)
+            now = datetime.now().timestamp()
+            
+            return max(0, int(expires_at - now))
+        except Exception as e:
+            logger.error(f"Error calculating Twitter expiration time: {str(e)}")
+            return 0
+    
+    def can_refresh_token(self, credentials) -> bool:
+        """Check if token can be refreshed"""
+        if not credentials:
             return False
-        return credentials.get("expires_at", 0) < datetime.now().timestamp()
-
-    async def token_validity(self, user_id: int):
-        """Check if user token is valid"""
+            
+        try:
+            if isinstance(credentials, str):
+                credentials = json.loads(credentials)
+                
+            # Twitter OAuth 2.0 tokens can be refreshed if refresh_token is present
+            # and the token is not too old
+            if credentials.get("refresh_token") and self.calculate_expiration_time(credentials) > -86400:  # Within 24h of expiry
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error checking if Twitter token can be refreshed: {str(e)}")
+            return False
+            
+    async def refresh_token(self, user_id: int) -> bool:
+        """Refresh the user's access token"""
         credentials = await self.get_user_credentials(user_id)
         if not credentials:
-            return {"valid": False, "expires_in": 0}
+            return False
+            
+        try:
+            if isinstance(credentials, str):
+                credentials = json.loads(credentials)
+                
+            # Check if token can be refreshed
+            if not self.can_refresh_token(credentials):
+                return False
+                
+            # Use the Twitter OAuth2 API to refresh the token
+            refresh_token = credentials.get("refresh_token")
+            if not refresh_token:
+                return False
+                
+            # Create a new API instance for refreshing
+            api = Api(
+                client_id=settings.TWITTER_CLIENT_ID,
+                client_secret=settings.TWITTER_CLIENT_SECRET,
+                oauth_flow=True
+            )
+            
+            # Generate a new token using the refresh token
+            new_credentials = api.refresh_oauth2_token(refresh_token)
+            
+            # Store the new credentials
+            await self.store_user_credentials(user_id, new_credentials)
+            return True
+        except Exception as e:
+            logger.error(f"Error refreshing Twitter token: {str(e)}")
+            return False
+
+    async def token_validity(self, request: Request):
+        """Check if user token is valid and return detailed info"""
+        params = dict(request.query_params)
+        user_id = params.get('user_id')
         
-        # "expiration": "2025-04-09T09:06:20.800964+00:00"
-        # convert to utc
-        return {"valid": credentials.get("expires_at", 0) < datetime.now().timestamp(), "expires_in": credentials.get("expires_at", 0) - datetime.now().timestamp()}
+        if not user_id:
+            raise HTTPException(
+                status_code=400, 
+                detail={
+                    "status": "error",
+                    "code": 400,
+                    "message": "User ID is required",
+                    "platform": self.provider_id
+                }
+            )
+        
+        token_validity = await self.get_token_validity(user_id)
+        
+        # If token is invalid but can be refreshed, try refreshing it
+        if not token_validity["valid"] and token_validity["refresh_possible"]:
+            refresh_success = await self.refresh_token(user_id)
+            if refresh_success:
+                # Get updated token validity
+                token_validity = await self.get_token_validity(user_id)
+                token_validity["refreshed"] = True
+        
+        return token_validity
 
 
 auth_handler = TwitterAuthHandler()
@@ -213,6 +337,18 @@ routes = [
         endpoint=auth_handler.token_validity,
         methods=["GET"],
         name="token_validity",
+        summary="Check if user token is valid",
+        description="Check if user token is valid and return detailed info",
+        tags=["twitter", "auth"]
+    ),
+    APIRoute(
+        path="/refresh_token",
+        endpoint=auth_handler.refresh_token,
+        methods=["POST"],
+        name="refresh_token",
+        summary="Refresh user token",
+        description="Refresh user token if it can be refreshed",
+        tags=["twitter", "auth"]
     )
 ]
 

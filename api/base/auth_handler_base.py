@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from asyncio.log import logger
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from fastapi import HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
@@ -108,8 +108,91 @@ class AuthHandlerBase(ABC):
     async def check_credentials_expiration(self, user_id: int) -> bool:
         """
         Check if credentials are expired
+        
+        Args:
+            user_id: User identifier
+            
+        Returns:
+            bool indicating if credentials are expired
         """
         pass
+    
+    @abstractmethod
+    def calculate_expiration_time(self, credentials) -> int:
+        """
+        Calculate time until expiration in seconds
+        
+        Args:
+            credentials: The credentials object
+            
+        Returns:
+            int representing seconds until expiration
+        """
+        pass
+    
+    @abstractmethod
+    def can_refresh_token(self, credentials) -> bool:
+        """
+        Check if token can be refreshed
+        
+        Args:
+            credentials: The credentials object
+            
+        Returns:
+            bool indicating if token can be refreshed
+        """
+        pass
+    
+    async def get_token_validity(self, user_id: int) -> Dict[str, Any]:
+        """
+        Get detailed token validity information
+        
+        Args:
+            user_id: User identifier
+            
+        Returns:
+            Dict containing validity status and expiration info
+        """
+        try:
+            credentials = await self.get_user_credentials(user_id)
+            if not credentials:
+                return {
+                    "valid": False, 
+                    "expires_in": 0, 
+                    "refresh_possible": False,
+                    "platform": self.provider_id
+                }
+                
+            # Check if credentials are expired
+            is_expired = await self.check_credentials_expiration(user_id)
+            if is_expired:
+                return {
+                    "valid": False, 
+                    "expires_in": 0, 
+                    "refresh_possible": self.can_refresh_token(credentials),
+                    "platform": self.provider_id
+                }
+                
+            # Calculate time until expiration
+            expires_in = self.calculate_expiration_time(credentials)
+            
+            return {
+                "valid": True,
+                "expires_in": expires_in,
+                "refresh_possible": self.can_refresh_token(credentials),
+                "platform": self.provider_id
+            }
+        except Exception as e:
+            logger.error(f"Error checking token validity: {e}")
+            raise HTTPException(
+                status_code=500, 
+                detail={
+                    "status": "error",
+                    "code": 500,
+                    "message": f"Error checking token validity: {str(e)}",
+                    "platform": self.provider_id
+                }
+            )
     
     async def is_connected(self, user_id: int) -> bool:
         """
@@ -248,8 +331,42 @@ class AuthHandlerBase(ABC):
             
             self.clear_state(user_id)
             
-            await self.db.delete_user_credentials(user_id, self.provider_id)
-            return Response(status_code=200, content={"status": "ok"})
+            # Get credentials first to check if they exist
+            credentials = await self.get_user_credentials(user_id)
+            if not credentials:
+                return Response(
+                    status_code=404,
+                    content=json.dumps({
+                        "status": "error",
+                        "code": 404,
+                        "message": f"User not connected to {self.provider_id}",
+                        "platform": self.provider_id
+                    }),
+                    media_type="application/json"
+                )
+            
+            # Delete credentials
+            await self.delete_user_credentials(user_id)
+            
+            return Response(
+                status_code=200,
+                content=json.dumps({
+                    "status": "success",
+                    "code": 200,
+                    "message": f"Successfully disconnected from {self.provider_id}",
+                    "platform": self.provider_id
+                }),
+                media_type="application/json"
+            )
         except Exception as e:
-            logger.error(f"Error disconnecting user: {e}")
-            raise HTTPException(status_code=500, detail=str(e))
+            logger.error(f"Error disconnecting from {self.provider_id}: {str(e)}")
+            return Response(
+                status_code=500,
+                content=json.dumps({
+                    "status": "error",
+                    "code": 500,
+                    "message": f"Error disconnecting from {self.provider_id}: {str(e)}",
+                    "platform": self.provider_id
+                }),
+                media_type="application/json"
+            )

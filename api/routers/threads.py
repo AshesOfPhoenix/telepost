@@ -9,8 +9,10 @@ from pythreads.configuration import Configuration
 from pythreads.api import API
 from pythreads.threads import Threads
 from pythreads.credentials import Credentials
+from pythreads.api import Media, MediaType
 from api.db.database import db
 from api.base.social_controller_base import SocialController
+from api.routers.auth.threads.auth import auth_handler as threads_auth_handler
 
 settings = get_settings()
 
@@ -23,6 +25,7 @@ class ThreadsController(SocialController):
             api_secret=settings.THREADS_APP_SECRET, 
             redirect_uri=f"{settings.API_PUBLIC_URL}{settings.THREADS_REDIRECT_URI}"
         )
+        self.auth_handler = threads_auth_handler
         logger.info("✅ ThreadsController initialized")
         
     async def get_user_account(self, request: Request):
@@ -31,43 +34,28 @@ class ThreadsController(SocialController):
             user_id = params.get('user_id')
             
             if not user_id:
-                raise HTTPException(
+                return self.create_error_response(
                     status_code=400,
-                    detail={
-                        "status": "error",
-                        "code": 400,
-                        "message": "User ID is required",
-                        "platform": "Threads"
-                    }
+                    message="User ID is required"
                 )
             
-            credentials = await self.get_user_credentials(user_id)
+            credentials = await self.auth_handler.get_user_credentials(user_id)
             if not credentials:
-                raise HTTPException(
+                return self.create_error_response(
                     status_code=404,
-                    detail={
-                        "status": "missing",
-                        "code": 404,
-                        "message": "User not connected to Threads",
-                        "platform": "Threads"
-                    }
+                    message="User not connected to Threads"
+                )
+            
+            # Check if credentials are expired
+            is_expired = await self.auth_handler.check_credentials_expiration(user_id)
+            if is_expired:
+                await self.auth_handler.delete_user_credentials(user_id)
+                return self.create_error_response(
+                    status_code=401,
+                    message="Credentials expired"
                 )
             
             threads_credentials = Credentials.from_json(credentials)
-            
-            # Check expiration
-            expiration_datetime = threads_credentials.expiration
-            current_time = datetime.now(timezone.utc)
-            if expiration_datetime < current_time:
-                await self.db.delete_user_credentials(user_id, self.provider_id)
-                raise HTTPException(
-                    status_code=401,
-                    detail={
-                        "status": "expired",
-                        "code": 401,
-                        "message": "Credentials expired"
-                    }
-                )
             
             try:
                 async with API(credentials=threads_credentials) as api:
@@ -90,153 +78,146 @@ class ThreadsController(SocialController):
                         "followers_count": insights.get_total_followers(),
                     }
                     
-                    return Response(
-                        status_code=200,
-                        content=json.dumps({
-                            "status": "success",
-                            "code": 200,
-                            "data": account_data
-                        }),
-                        media_type="application/json"
+                    return self.create_success_response(
+                        data=account_data,
+                        message="User account retrieved successfully"
                     )
                     
             except Exception as api_error:
                 logger.error(f"Threads API Error: {str(api_error)}")
-                raise HTTPException(
+                return self.create_error_response(
                     status_code=500,
-                    detail={
-                        "status": "error",
-                        "code": 500,
-                        "message": f"API Error: {str(api_error)}"
-                    }
+                    message=f"API Error: {str(api_error)}"
                 )
                 
-        except HTTPException:
-            raise
         except Exception as e:
-            logger.error(f"Unexpected error: {str(e)}")
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "status": "error",
-                    "code": 500,
-                    "message": "An unexpected error occurred"
-                }
-            )
+            return self.handle_exception(e, "retrieving user account")
         
     async def post(self, request: Request):
         try:
             params = dict(request.query_params)
             user_id = params.get('user_id')
-            message = params.get('message')
+            message = params.get('message', '')
             image_url = params.get('image_url')
             
             if not user_id:
-                raise Exception(
-                    "User ID is required",
-                    platform="Threads",
+                return self.create_error_response(
                     status_code=400,
-                    details={"message": "User ID is required"}
+                    message="User ID is required"
                 )
             
-            credentials = await self.get_user_credentials(user_id)
+            credentials = await self.auth_handler.get_user_credentials(user_id)
             if not credentials:
-                raise HTTPException(
-                    status_code=404, 
-                    detail={
-                        "status": "missing",
-                        "code": 404,
-                        "message": "User not connected to Threads",
-                        "platform": "Threads"
-                    }
+                return self.create_error_response(
+                    status_code=404,
+                    message="User not connected to Threads"
+                )
+            
+            # Check if credentials are expired
+            is_expired = await self.auth_handler.check_credentials_expiration(user_id)
+            if is_expired:
+                await self.auth_handler.delete_user_credentials(user_id)
+                return self.create_error_response(
+                    status_code=401,
+                    message="Credentials expired"
                 )
                 
             threads_credentials = Credentials.from_json(credentials)
-                
-            # Check expiration
-            expiration_datetime = threads_credentials.expiration
-            current_time = datetime.now(timezone.utc)
-            if expiration_datetime < current_time:
-                await self.db.delete_user_credentials(user_id)
-                raise HTTPException(
-                    status_code=401, 
-                    detail={
-                        "status": "expired",
-                        "code": 401,
-                        "message": "Credentials expired"
-                    }
-                )
             
             async with API(credentials=threads_credentials) as api:
-                # Create a container
-                container_id = await api.create_container(message)
+                container_id = None
+                
+                # Handle different posting scenarios
+                if image_url:
+                    # Create a media container
+                    media = Media(type=MediaType.IMAGE, url=image_url)
+                    container_id = await api.create_container(message, media=media)
+                else:
+                    # Create a text-only container
+                    container_id = await api.create_container(message)
+                
+                if not container_id:
+                    return self.create_error_response(
+                        status_code=500,
+                        message="Failed to create container"
+                    )
                 
                 # Check the container status
                 create_status = await api.container_status(container_id)
                 logger.info(f"Create Status: {create_status}")
                 
-                # state
-                create_state = create_status.status.value
-                logger.info(f"Create State: {create_state}")
+                # If status is not FINISHED, wait a bit and check again
+                if create_status.status.value != "FINISHED":
+                    # In a real app, this would be handled asynchronously
+                    # For now, just return an error
+                    return self.create_error_response(
+                        status_code=500,
+                        message="Container not ready for publishing"
+                    )
                 
                 # Publish the container
                 result_id = await api.publish_container(container_id)
                 
-                # Check the container status
+                # Check the publish status
                 publish_status = await api.container_status(container_id)
                 logger.info(f"Publish Status: {publish_status}")
                 
-                publish_state = publish_status.status.value
-                logger.info(f"Publish State: {publish_state}")
-
-                if publish_state == "PUBLISHED":
+                if publish_status.status.value == "PUBLISHED":
+                    # Get thread details
                     thread = await api.thread(result_id)
-                    logger.info(f"Thread: {thread}")
-                    return Response(
-                        status_code=200,
-                        content={"status": "success", "code": 200, "message": "Thread posted successfully.", "details": {"result_id": result_id, "thread": thread}}
+                    
+                    # Format thread details for response
+                    thread_data = {
+                        "id": thread.id,
+                        "permalink": f"https://threads.net/@{thread.username}/post/{thread.id}",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "text": message
+                    }
+                    
+                    return self.create_success_response(
+                        data={"thread": thread_data},
+                        message="Thread posted successfully"
                     )
                 else:
-                    raise HTTPException(
+                    return self.create_error_response(
                         status_code=500,
-                        detail={
-                            "status": "error",
-                            "code": 500,
-                            "message": f"Failed to publish thread. State: {publish_state}"
-                        }
+                        message=f"Failed to publish thread. State: {publish_status.status.value}"
                     )
             
-        except HTTPException:
-            raise
-        except Exception as http_error:
-            logger.error(f"HTTP Error: {str(http_error)}")
-            raise HTTPException(
-                status_code=500,
-                detail={
-                    "status": "error",
-                    "code": 500,
-                    "message": str(http_error)
-                }
-            )
-        
-    async def disconnect(self, user_id: int) -> bool:
-        try:
-            await self.db.delete_user_credentials(user_id, self.provider_id)
-            return Response(
-                status_code=200,
-                content={"status": "success", "code": 200, "message": "Disconnected from Threads successfully."}
-            )
-        except HTTPException:
-            raise
         except Exception as e:
-            logger.error(f"Error disconnecting from Threads: {str(e)}")
-            raise HTTPException(status_code=500, detail={
-                    "status": "error",
-                    "code": 500,
-                    "message": str(e)
-                }
+            return self.handle_exception(e, "posting thread")
+        
+    async def token_validity(self, request: Request):
+        """
+        Check token validity for a user
+        
+        Args:
+            request: FastAPI request with user_id parameter
+            
+        Returns:
+            Response with token validity information
+        """
+        try:
+            params = dict(request.query_params)
+            user_id = params.get('user_id')
+            
+            if not user_id:
+                return self.create_error_response(
+                    status_code=400,
+                    message="User ID is required"
+                )
+            
+            # Use the auth handler to check token validity
+            validity_info = await self.auth_handler.get_token_validity(user_id)
+            
+            return self.create_success_response(
+                data=validity_info,
+                message="Token validity checked successfully"
             )
-    
+            
+        except Exception as e:
+            return self.handle_exception(e, "checking token validity")
+
 
 threads_controller = ThreadsController()
 
@@ -248,20 +229,30 @@ routes = [
         endpoint=threads_controller.get_user_account,
         methods=["GET"],
         name="get_user_account",
-        summary="Get user account",
-        description="Get user account details from Threads",
+        summary="Get user account info",
+        description="Get Threads user account information",
         tags=["threads"]
     ),
     APIRoute(
         path="/post",
         endpoint=threads_controller.post,
         methods=["POST"],
-        name="post_thread",
-        summary="Post a thread",
-        description="Post a thread to Threads",
+        name="post",
+        summary="Post to Threads",
+        description="Post a message to Threads",
+        tags=["threads"]
+    ),
+    APIRoute(
+        path="/token_validity",
+        endpoint=threads_controller.token_validity,
+        methods=["GET"],
+        name="token_validity",
+        summary="Check token validity",
+        description="Check if user token is valid and return detailed info",
         tags=["threads"]
     )
 ]
 
+# Add routes to the router
 for route in routes:
     router.routes.append(route)
