@@ -1,5 +1,6 @@
 # Threads Auth Controller
-from datetime import datetime
+from datetime import datetime, timezone
+import json
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi import HTTPException
 from api.utils.logger import logger
@@ -156,6 +157,17 @@ class TwitterAuthHandler(AuthHandlerBase):
             return False
         return credentials.get("expires_at", 0) < datetime.now().timestamp()
 
+    async def token_validity(self, user_id: int):
+        """Check if user token is valid"""
+        credentials = await self.get_user_credentials(user_id)
+        if not credentials:
+            return {"valid": False, "expires_in": 0}
+        
+        # "expiration": "2025-04-09T09:06:20.800964+00:00"
+        # convert to utc
+        return {"valid": credentials.get("expires_at", 0) < datetime.now().timestamp(), "expires_in": credentials.get("expires_at", 0) - datetime.now().timestamp()}
+
+
 auth_handler = TwitterAuthHandler()
 
 # Define routes using the new approach
@@ -195,6 +207,12 @@ routes = [
         summary="Check if user is connected to Twitter",
         description="Check if user is connected to Twitter",
         tags=["twitter", "auth"]
+    ),
+    APIRoute(
+        path="/token_validity",
+        endpoint=auth_handler.token_validity,
+        methods=["GET"],
+        name="token_validity",
     )
 ]
 

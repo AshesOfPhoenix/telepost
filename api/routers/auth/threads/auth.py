@@ -151,6 +151,19 @@ class ThreadsAuthHandler(AuthHandlerBase):
         # convert to utc
         expiration = datetime.strptime(credentials.get("expiration"), "%Y-%m-%dT%H:%M:%S.%f%z").astimezone(timezone.utc)
         return expiration < datetime.now(timezone.utc)
+    
+    async def token_validity(self, user_id: int):
+        """Check if user token is valid"""
+        credentials = await self.get_user_credentials(user_id)
+        if not credentials:
+            return {"valid": False, "expires_in": 0}
+        
+        credentials = json.loads(credentials)
+        # "expiration": "2025-04-09T09:06:20.800964+00:00"
+        # convert to utc
+        expiration = datetime.strptime(credentials.get("expiration"), "%Y-%m-%dT%H:%M:%S.%f%z").astimezone(timezone.utc)
+        return {"valid": expiration > datetime.now(timezone.utc), "expires_in": expiration - datetime.now(timezone.utc)}
+
 
 auth_handler = ThreadsAuthHandler()
 
@@ -191,6 +204,13 @@ routes = [
         summary="Check if user is connected to Threads",
         description="Check if user is connected to Threads",
         tags=["threads", "auth"]
+    ),
+    APIRoute(
+        path="/token_validity",
+        endpoint=auth_handler.token_validity,
+        methods=["GET"],
+        name="token_validity",
+        summary="Check if user token is valid",
     )
 ]
 
