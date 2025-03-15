@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     API_KEY_HEADER_NAME: str = "X-API-KEY"
     
     # Encryption
-    ENCRYPTION_KEY: str
+    ENCRYPTION_KEY: str | None = None
     
     # Telegram
     TELEGRAM_TOKEN: str

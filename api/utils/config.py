@@ -57,18 +57,19 @@ class Settings(BaseSettings):
     THREADS_APP_ID: str
     THREADS_APP_SECRET: str
     THREADS_API_URL: str = "https://api.threads.net"
-    THREADS_REDIRECT_URI: str
+    THREADS_REDIRECT_URI: str = "/auth/threads/callback"
     
     # Twitter API
     TWITTER_CLIENT_ID: str
     TWITTER_CLIENT_SECRET: str
-    TWITTER_REDIRECT_URI: str
+    TWITTER_API_URL: str = "https://api.x.com"
+    TWITTER_REDIRECT_URI: str = "/auth/twitter/callback"
     
     # Telegram
     TELEGRAM_BOTNAME: str
     
     # OpenAI
-    OPENAI_API_KEY: str
+    OPENAI_API_KEY: str | None = None
     
     # Redis (for rate limiting/caching)
     REDIS_URL: str | None = None
