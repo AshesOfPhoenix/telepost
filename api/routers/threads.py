@@ -168,8 +168,8 @@ class ThreadsController(SocialController):
                     
                     # Format thread details for response
                     thread_data = {
-                        "id": thread.id,
-                        "permalink": f"https://threads.net/@{thread.username}/post/{thread.id}",
+                        "id": thread["id"],
+                        "permalink": f"https://threads.net/@{thread['username']}/post/{thread['id']}",
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                         "text": message
                     }
@@ -209,6 +209,7 @@ class ThreadsController(SocialController):
             
             # Use the auth handler to check token validity
             validity_info = await self.auth_handler.get_token_validity(user_id)
+            logger.info(f"Validity info: {validity_info}")
             
             return self.create_success_response(
                 data=validity_info,

@@ -1,4 +1,5 @@
 # API Main
+import logging
 import time
 from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,6 +20,7 @@ from api.utils.docs import custom_openapi
 
 settings = get_settings()
 
+logger.setLevel(logging.DEBUG)
 logger.info("Initializing API...")
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):

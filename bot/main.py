@@ -95,13 +95,13 @@ class TelegramBot:
         logger.info(f"Allowed users: {settings.ALLOWED_USERS}")
         logger.info("✅ Bot initialized")
         
-    async def get(self, endpoint: str, params: dict = None):
-        response = await self.http_client.get(self.API_PUBLIC_URL + endpoint, params=params)
+    async def api_get(self, endpoint: str, params: dict = None, timeout: int = 30):
+        response = await self.http_client.get(self.API_PUBLIC_URL + endpoint, params=params, timeout=timeout)
         return response
     
 
-    async def post(self, endpoint: str, params: dict = None):
-        response = await self.http_client.post(self.API_PUBLIC_URL + endpoint, params=params)
+    async def api_post(self, endpoint: str, params: dict = None, timeout: int = 30):
+        response = await self.http_client.post(self.API_PUBLIC_URL + endpoint, params=params, timeout=timeout)
         return response
         
 
@@ -121,7 +121,7 @@ class TelegramBot:
         logger.info(update)
         try:
             bot_response = await context.bot.get_me()
-            api_response = await self.get("/health")
+            api_response = await self.api_get("/health")
             
             if api_response.status_code != 200:
                 await update.message.reply_text(
@@ -192,7 +192,7 @@ class TelegramBot:
         try:
             
             # Get Threads account data
-            response = await self.get("/threads/user_account", params={"user_id": user_id})
+            response = await self.api_get("/threads/user_account", params={"user_id": user_id})
             response_data = await self.handle_api_response(response, "Threads")
             
             logger.info(f"Threads account data: {response_data}")
@@ -248,7 +248,7 @@ class TelegramBot:
             
         try:
             # Get Twitter account data
-            response = await self.get("/twitter/user_account", params={"user_id": user_id})
+            response = await self.api_get("/twitter/user_account", params={"user_id": user_id})
             response_data = await self.handle_api_response(response, "Twitter")
             
             logger.info(f"Twitter account data: {response_data}")
@@ -359,7 +359,7 @@ class TelegramBot:
         )
         
         try:
-            threads_response = await self.get("/auth/threads/is_connected", params={"user_id": user_id})
+            threads_response = await self.api_get("/auth/threads/is_connected", params={"user_id": user_id})
             logger.info(f"Threads response status: {threads_response.status_code}")
             
             logger.info(f"Threads response text: {threads_response.text}")
@@ -370,13 +370,13 @@ class TelegramBot:
             connection_guide += f"🧵 *Threads*: {('✅ Connected' if is_threads_connected else '❌ Not connected')}\n"
             
             if not is_threads_connected:
-                threads_auth_url = await self.get("/auth/threads/connect", params={"user_id": user_id})
+                threads_auth_url = await self.api_get("/auth/threads/connect", params={"user_id": user_id})
                 if threads_auth_url.json().get("url"):
                     context.user_data[f'threads_auth_url_{user_id}'] = threads_auth_url.json().get("url")
             else:
                 # If connected, try to get username
                 try:
-                    account_response = await self.get("/threads/user_account", params={"user_id": user_id})
+                    account_response = await self.api_get("/threads/user_account", params={"user_id": user_id})
                     if account_response.status_code == 200:
                         account_data = account_response.json().get("data", {})
                         username = account_data.get("username")
@@ -393,7 +393,7 @@ class TelegramBot:
             connection_guide += f"🧵 *Threads*: ❓ Status unknown\n"
             
         try:
-            twitter_response = await self.get("/auth/twitter/is_connected", params={"user_id": user_id})
+            twitter_response = await self.api_get("/auth/twitter/is_connected", params={"user_id": user_id})
             logger.info(f"Twitter response status: {twitter_response.status_code}")
             
             logger.info(f"Twitter response text: {twitter_response.text}")
@@ -404,13 +404,13 @@ class TelegramBot:
             connection_guide += f"🐦 *Twitter*: {('✅ Connected' if is_twitter_connected else '❌ Not connected')}\n"
             
             if not is_twitter_connected:
-                twitter_auth_url = await self.get("/auth/twitter/connect", params={"user_id": user_id})
+                twitter_auth_url = await self.api_get("/auth/twitter/connect", params={"user_id": user_id})
                 if twitter_auth_url.json().get("url"):
                     context.user_data[f'twitter_auth_url_{user_id}'] = twitter_auth_url.json().get("url")
             else:
                 # If connected, try to get username
                 try:
-                    account_response = await self.get("/twitter/user_account", params={"user_id": user_id})
+                    account_response = await self.api_get("/twitter/user_account", params={"user_id": user_id})
                     if account_response.status_code == 200:
                         account_data = account_response.json().get("data", {})
                         username = account_data.get("username")
@@ -533,7 +533,7 @@ class TelegramBot:
         try:
             if platform == "threads":
                 # Make direct HTTP request to disconnect endpoint
-                response = await self.post("/auth/threads/disconnect", params={"user_id": user_id})
+                response = await self.api_post("/auth/threads/disconnect", params={"user_id": user_id})
                 
                 if response.status_code == 200:
                     # Delete the original message with the keyboard
@@ -550,7 +550,7 @@ class TelegramBot:
                     
             elif platform == "twitter":
                 # Handle Twitter disconnect similarly
-                response = await self.post("/auth/twitter/disconnect", params={"user_id": user_id})
+                response = await self.api_post("/auth/twitter/disconnect", params={"user_id": user_id})
                 logger.info(f"Twitter disconnect response: {response.json()}")
                 
                 if response.status_code == 200:
@@ -605,7 +605,7 @@ class TelegramBot:
             if str(update.effective_user.id) == user_id:
                 # Get account info to show in success message
                 try:
-                    response = await self.get("/threads/user_account", params={"user_id": user_id})
+                    response = await self.api_get("/threads/user_account", params={"user_id": user_id})
                     account_data = response.json()
                     
                     if account_data.get("status") != "error":
@@ -691,6 +691,7 @@ class TelegramBot:
                 
             # First validate connections and notify about expiring tokens
             connection_status = await self.validate_connections(user_id, notify=True, update=update)
+            logger.info(f"Connection status: {connection_status}")
             
             # Check if any platform is connected and valid
             available_platforms = []
@@ -728,14 +729,16 @@ class TelegramBot:
             for platform in available_platforms:
                 try:
                     if platform == "threads":
-                        response = await self.post("/threads/post", params={
+                        response = await self.api_post("/threads/post", params={
                             "user_id": user_id, 
                             "message": content if content_type == "text" else "", 
                             "image_url": content if content_type != "text" else None
                         }, timeout=30)
                         
                         if response.status_code == 200 and response.json().get("status") == "success":
-                            thread_data = response.json().get("thread", {})
+                            thread_json = response.json()
+                            #logger.info(f"Thread JSON: {thread_json}")
+                            thread_data = thread_json.get("data", {}).get("thread", {})
                             thread_url = thread_data.get("permalink")
                             thread_timestamp = thread_data.get("timestamp").replace("T", " ").replace("+0000", "")
                             
@@ -751,14 +754,15 @@ class TelegramBot:
                             results.append(f"❌ *Threads*: Failed to post - {error_message}")
                     
                     elif platform == "twitter":
-                        response = await self.post("/twitter/post", params={
+                        response = await self.api_post("/twitter/post", params={
                             "user_id": user_id, 
                             "message": content if content_type == "text" else "", 
                             "image_url": content if content_type != "text" else None
                         }, timeout=30)
                         
                         if response.status_code == 200 and response.json().get("status") == "success":
-                            tweet_data = response.json().get("tweet", {})
+                            tweet_json = response.json()
+                            tweet_data = tweet_json.get("data", {}).get("tweet", {})
                             tweet_url = tweet_data.get("permalink")
                             tweet_timestamp = tweet_data.get("timestamp")
                             
@@ -838,11 +842,11 @@ class TelegramBot:
         
         try:
             # Check Threads connection
-            threads_response = await self.get("/auth/threads/is_connected", params={"user_id": user_id})
+            threads_response = await self.api_get("/auth/threads/is_connected", params={"user_id": user_id})
             threads_connected = threads_response.json() if threads_response.status_code == 200 else False
             
             # Check Twitter connection
-            twitter_response = await self.get("/auth/twitter/is_connected", params={"user_id": user_id})
+            twitter_response = await self.api_get("/auth/twitter/is_connected", params={"user_id": user_id})
             twitter_connected = twitter_response.json() if twitter_response.status_code == 200 else False
             
             # If no platforms connected, guide user
@@ -961,7 +965,7 @@ class TelegramBot:
             for plat in platforms:
                 try:
                     if plat == "threads":
-                        response = await self.post("/threads/post", params={
+                        response = await self.api_post("/threads/post", params={
                             "user_id": user_id, 
                             "message": message, 
                             "image_url": media_items[0].file_id if media_items else None
@@ -984,7 +988,7 @@ class TelegramBot:
                             results.append(f"❌ *Threads*: Failed to post - {error_message}")
                     
                     elif plat == "twitter":
-                        response = await self.post("/twitter/post", params={
+                        response = await self.api_post("/twitter/post", params={
                             "user_id": user_id, 
                             "message": message, 
                             "image_url": media_items[0].file_id if media_items else None
@@ -1080,7 +1084,7 @@ class TelegramBot:
         for platform in platforms:
             try:
                 if platform == "threads":
-                    response = await self.post("/threads/post", params={
+                    response = await self.api_post("/threads/post", params={
                         "user_id": user_id, 
                         "message": content if content_type == "text" else "", 
                         "image_url": content if content_type != "text" else None
@@ -1103,7 +1107,7 @@ class TelegramBot:
                         results.append(f"❌ *Threads*: Failed to post - {error_message}")
                 
                 elif platform == "twitter":
-                    response = await self.post("/twitter/post", params={
+                    response = await self.api_post("/twitter/post", params={
                         "user_id": user_id, 
                         "message": content if content_type == "text" else "", 
                         "image_url": content if content_type != "text" else None
@@ -1210,7 +1214,7 @@ class TelegramBot:
         
         # Check Threads status
         try:
-            threads_response = await self.get("/auth/threads/is_connected", params={"user_id": user_id})
+            threads_response = await self.api_get("/auth/threads/is_connected", params={"user_id": user_id})
             is_threads_connected = threads_response.json() if threads_response.status_code == 200 else False
             
             status_message += "🧵 *Threads*: " + ("✅ Connected" if is_threads_connected else "❌ Not connected") + "\n"
@@ -1218,7 +1222,7 @@ class TelegramBot:
             # If connected, add account info
             if is_threads_connected:
                 try:
-                    account_response = await self.get("/threads/user_account", params={"user_id": user_id})
+                    account_response = await self.api_get("/threads/user_account", params={"user_id": user_id})
                     if account_response.status_code == 200:
                         account_data = account_response.json().get("data", {})
                         username = account_data.get("username")
@@ -1232,7 +1236,7 @@ class TelegramBot:
         
         # Check Twitter status
         try:
-            twitter_response = await self.get("/auth/twitter/is_connected", params={"user_id": user_id})
+            twitter_response = await self.api_get("/auth/twitter/is_connected", params={"user_id": user_id})
             is_twitter_connected = twitter_response.json() if twitter_response.status_code == 200 else False
             
             status_message += "\n🐦 *Twitter*: " + ("✅ Connected" if is_twitter_connected else "❌ Not connected") + "\n"
@@ -1240,7 +1244,7 @@ class TelegramBot:
             # If connected, add account info
             if is_twitter_connected:
                 try:
-                    account_response = await self.get("/twitter/user_account", params={"user_id": user_id})
+                    account_response = await self.api_get("/twitter/user_account", params={"user_id": user_id})
                     if account_response.status_code == 200:
                         account_data = account_response.json().get("data", {})
                         username = account_data.get("username")
@@ -1297,7 +1301,7 @@ class TelegramBot:
         
         # Check Threads status
         try:
-            threads_response = await self.get("/auth/threads/is_connected", params={"user_id": user_id})
+            threads_response = await self.api_get("/auth/threads/is_connected", params={"user_id": user_id})
             is_threads_connected = threads_response.json() if threads_response.status_code == 200 else False
             
             status_message += "🧵 *Threads*: " + ("✅ Connected" if is_threads_connected else "❌ Not connected") + "\n"
@@ -1305,7 +1309,7 @@ class TelegramBot:
             # If connected, add account info
             if is_threads_connected:
                 try:
-                    account_response = await self.get("/threads/user_account", params={"user_id": user_id})
+                    account_response = await self.api_get("/threads/user_account", params={"user_id": user_id})
                     if account_response.status_code == 200:
                         account_data = account_response.json().get("data", {})
                         username = account_data.get("username")
@@ -1319,7 +1323,7 @@ class TelegramBot:
         
         # Check Twitter status
         try:
-            twitter_response = await self.get("/auth/twitter/is_connected", params={"user_id": user_id})
+            twitter_response = await self.api_get("/auth/twitter/is_connected", params={"user_id": user_id})
             is_twitter_connected = twitter_response.json() if twitter_response.status_code == 200 else False
             
             status_message += "\n🐦 *Twitter*: " + ("✅ Connected" if is_twitter_connected else "❌ Not connected") + "\n"
@@ -1327,7 +1331,7 @@ class TelegramBot:
             # If connected, add account info
             if is_twitter_connected:
                 try:
-                    account_response = await self.get("/twitter/user_account", params={"user_id": user_id})
+                    account_response = await self.api_get("/twitter/user_account", params={"user_id": user_id})
                     if account_response.status_code == 200:
                         account_data = account_response.json().get("data", {})
                         username = account_data.get("username")
@@ -1382,13 +1386,13 @@ class TelegramBot:
         is_twitter_connected = False
         
         try:
-            threads_response = await self.get("/auth/threads/is_connected", params={"user_id": user_id})
+            threads_response = await self.api_get("/auth/threads/is_connected", params={"user_id": user_id})
             is_threads_connected = threads_response.json() if threads_response.status_code == 200 else False
         except Exception as e:
             logger.error(f"Error checking Threads connection: {str(e)}")
         
         try:
-            twitter_response = await self.get("/auth/twitter/is_connected", params={"user_id": user_id})
+            twitter_response = await self.api_get("/auth/twitter/is_connected", params={"user_id": user_id})
             is_twitter_connected = twitter_response.json() if twitter_response.status_code == 200 else False
         except Exception as e:
             logger.error(f"Error checking Twitter connection: {str(e)}")
@@ -1457,13 +1461,13 @@ class TelegramBot:
         is_twitter_connected = False
         
         try:
-            threads_response = await self.get("/auth/threads/is_connected", params={"user_id": user_id})
+            threads_response = await self.api_get("/auth/threads/is_connected", params={"user_id": user_id})
             is_threads_connected = threads_response.json() if threads_response.status_code == 200 else False
         except Exception as e:
             logger.error(f"Error checking Threads connection: {str(e)}")
         
         try:
-            twitter_response = await self.get("/auth/twitter/is_connected", params={"user_id": user_id})
+            twitter_response = await self.api_get("/auth/twitter/is_connected", params={"user_id": user_id})
             is_twitter_connected = twitter_response.json() if twitter_response.status_code == 200 else False
         except Exception as e:
             logger.error(f"Error checking Twitter connection: {str(e)}")
@@ -1530,14 +1534,19 @@ class TelegramBot:
         
         # Check Threads
         try:
-            threads_response = await self.get("/auth/threads/is_connected", params={"user_id": user_id})
+            threads_response = await self.api_get("/auth/threads/is_connected", params={"user_id": user_id})
+            logger.info(f"Threads response: {threads_response}")
             if threads_response.status_code == 200 and threads_response.json():
                 results["threads"]["connected"] = True
                 
                 # Check token validity
-                validity_response = await self.get("/threads/token_validity", params={"user_id": user_id})
+                validity_response = await self.api_get("/threads/token_validity", params={"user_id": user_id})
+                logger.info(f"Validity response: {validity_response}")
                 if validity_response.status_code == 200:
-                    validity_data = validity_response.json()
+                    response_json = validity_response.json()
+                    # Access the validity info from the data field
+                    validity_data = response_json.get("data", {})
+                    
                     results["threads"]["valid"] = validity_data.get("valid", False)
                     results["threads"]["expires_in"] = validity_data.get("expires_in")
                     
@@ -1554,14 +1563,17 @@ class TelegramBot:
         
         # Check Twitter
         try:
-            twitter_response = await self.get("/auth/twitter/is_connected", params={"user_id": user_id})
+            twitter_response = await self.api_get("/auth/twitter/is_connected", params={"user_id": user_id})
             if twitter_response.status_code == 200 and twitter_response.json():
                 results["twitter"]["connected"] = True
                 
                 # Check token validity
-                validity_response = await self.get("/twitter/token_validity", params={"user_id": user_id})
+                validity_response = await self.api_get("/twitter/token_validity", params={"user_id": user_id})
                 if validity_response.status_code == 200:
-                    validity_data = validity_response.json()
+                    response_json = validity_response.json()
+                    # Access the validity info from the data field
+                    validity_data = response_json.get("data", {})
+                    
                     results["twitter"]["valid"] = validity_data.get("valid", False)
                     results["twitter"]["expires_in"] = validity_data.get("expires_in")
                     

@@ -101,8 +101,8 @@ class Database:
                 if result and result[f'{provider_id}_credentials']:
                     decrypted_data = self.decrypt_data(result[f'{provider_id}_credentials'])
                 
-                    logger.debug(f"Decrypted data type: {type(decrypted_data)}")
-                    logger.debug(f"Decrypted data: {decrypted_data}")
+                    # logger.debug(f"Decrypted data type: {type(decrypted_data)}")
+                    # logger.debug(f"Decrypted data: {decrypted_data}")
                     
                     return decrypted_data
             return None

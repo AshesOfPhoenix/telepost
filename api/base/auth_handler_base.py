@@ -2,11 +2,15 @@ from abc import ABC, abstractmethod
 from asyncio.log import logger
 from datetime import datetime, timezone
 import json
+import logging
 from fastapi import HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from typing import Dict, Any, Optional, Tuple
 from api.db.database import db
 from pythreads.credentials import Credentials
+
+logger = logging.getLogger(__name__)
+
 
 class AuthHandlerBase(ABC):
     """
@@ -175,7 +179,6 @@ class AuthHandlerBase(ABC):
                 
             # Calculate time until expiration
             expires_in = self.calculate_expiration_time(credentials)
-            
             return {
                 "valid": True,
                 "expires_in": expires_in,
@@ -314,7 +317,6 @@ class AuthHandlerBase(ABC):
             logger.warning(f"State not found for user {user_id}")
             raise HTTPException(status_code=404, detail=f"State not found for user {user_id}")
 
-    @abstractmethod
     async def disconnect(self, request: Request) -> Response:
         """
         Disconnect user's account from the social media platform.
