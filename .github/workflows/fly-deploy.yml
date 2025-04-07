@@ -1,0 +1,29 @@
+# See https://fly.io/docs/app-guides/continuous-deployment-with-github-actions/
+
+name: Fly Deploy
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy-api:
+    name: Deploy Telepost API
+    runs-on: ubuntu-latest
+    concurrency: deploy-api-group
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only --app telepost-api
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_API }}
+  
+  deploy-bot:
+    name: Deploy Telepost Bot
+    runs-on: ubuntu-latest
+    concurrency: deploy-bot-group
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only --app telepost-bot
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_BOT }}
