@@ -27,8 +27,8 @@ primary_region = 'fra'
   TWITTER_REDIRECT_URI = "/auth/twitter/callback"
   THREADS_API_URL = "https://api.threads.net"
   THREADS_REDIRECT_URI = "/auth/threads/callback"
-  THREADS_SSL_CERT_FILEPATH = "/dev/null"
-  THREADS_SSL_KEY_FILEPATH = "/dev/null"
+  THREADS_SSL_CERT_FILEPATH = "/app/certs/cert.pem"
+  THREADS_SSL_KEY_FILEPATH = "/app/certs/key.pem"
 
 [[vm]]
   cpu_kind = "shared"

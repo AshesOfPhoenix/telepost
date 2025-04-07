@@ -16,7 +16,7 @@ RUN mkdir -p certs && \
     -keyout certs/key.pem \
     -out certs/cert.pem \
     -days 365 \
-    -subj "/CN=localhost"
+    -subj "/CN=telepost-api.fly.dev"
 
 # Copy requirements first for better caching
 COPY ./api/requirements.txt ./requirements.txt
