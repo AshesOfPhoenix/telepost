@@ -10,14 +10,14 @@ primary_region = 'fra'
   dockerfile = 'bot/Dockerfile'
 
 [http_service]
-  internal_port = 3000
+  internal_port = 8080
   force_https = true
-  auto_stop_machines = false
+  auto_stop_machines = "suspend"
   auto_start_machines = true
   processes = ['app']
 
 [env]
-  PORT = 3000
+  PORT = 8080
   API_PUBLIC_URL = "https://telepost-api.fly.dev"
   TELEGRAM_BOTNAME = "xpostmanbot"
   ALLOWED_USERS = "kikoems"

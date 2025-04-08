@@ -983,6 +983,14 @@ class TelegramBot:
                                     timestamp=thread_timestamp
                                 )
                             )
+                            
+                            keyboard = InlineKeyboardMarkup([
+                                [InlineKeyboardButton("🗑️ Delete Post", callback_data=f"delete_threads_{thread_data.get('id')}_{user_id}")]
+                            ])
+                            
+                            await query.message.reply_text(results[-1], reply_markup=keyboard, parse_mode='Markdown')
+                            results[-1] = None
+                            
                         else:
                             error_message = response.json().get("message", "Unknown error")
                             results.append(f"❌ *Threads*: Failed to post - {error_message}")
@@ -1006,6 +1014,13 @@ class TelegramBot:
                                     timestamp=tweet_timestamp
                                 )
                             )
+                            
+                            keyboard = InlineKeyboardMarkup([
+                                [InlineKeyboardButton("🗑️ Delete Post", callback_data=f"delete_twitter_{tweet_data.get('id')}_{user_id}")]
+                            ])
+                            
+                            await query.message.reply_text(results[-1], reply_markup=keyboard, parse_mode='Markdown')
+                            results[-1] = None
                         else:
                             error_message = response.json().get("message", "Unknown error")
                             results.append(f"❌ *Twitter*: Failed to post - {error_message}")
@@ -1015,6 +1030,8 @@ class TelegramBot:
                     results.append(f"❌ *{plat.capitalize()}*: Error - {str(e)}")
             
             # Show results
+            results = [r for r in results if r is not None]
+            
             if results:
                 await query.edit_message_text(
                     "\n\n".join(results),
@@ -1047,6 +1064,52 @@ class TelegramBot:
             # Store the selection for handling the next message
             if "platform_selection" in context.user_data:
                 context.user_data["platform_selection"]["platforms"] = platforms
+        
+    async def delete_post_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Handle post deletion callback.
+        
+        Args:
+            update: Update object
+            context: Context object
+        """
+        query = update.callback_query
+        await query.answer()
+        
+        # Extract platform, post_id and user_id from callback data
+        _, platform, post_id, user_id = query.data.split('_')
+        
+        try:
+            # Show processing status
+            await query.edit_message_text(
+                "🔄 Deleting post...",
+                parse_mode='Markdown'
+            )
+            
+            # Call appropriate API endpoint
+            response = await self.api_delete(f"/{platform}/delete_post", params={
+                "user_id": user_id,
+                "id": post_id
+            }, timeout=30)
+            
+            if response.status_code == 200 and response.json().get("status") == "success":
+                await query.edit_message_text(
+                    f"✅ Post deleted successfully from {platform.capitalize()}",
+                    parse_mode='Markdown'
+                )
+            else:
+                error_message = response.json().get("message", "Unknown error")
+                await query.edit_message_text(
+                    f"❌ Failed to delete post from {platform.capitalize()} - {error_message}",
+                    parse_mode='Markdown'
+                )
+                
+        except Exception as e:
+            logger.error(f"Error deleting post from {platform}: {str(e)}")
+            await query.edit_message_text(
+                f"❌ Error deleting post from {platform.capitalize()} - {str(e)}",
+                parse_mode='Markdown'
+            )
     
     async def process_post(self, update: Update, context: ContextTypes.DEFAULT_TYPE, platforms: list):
         """

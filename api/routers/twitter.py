@@ -216,6 +216,73 @@ class TwitterController(SocialController):
                 status_code=error_info.get("code", 500),
                 message=error_info.get("message", str(e))
             )
+            
+    async def delete_post(self, request: Request):
+        try:
+            params = dict(request.query_params)
+            user_id = params.get('user_id')
+            tweet_id = params.get('id')
+            
+            if not user_id or not tweet_id:
+                return self.create_error_response(
+                    status_code=400,
+                    message="User ID and Tweet ID are required"
+                )
+                
+            credentials = await self.auth_handler.get_user_credentials(user_id)
+            if not credentials:
+                return self.create_error_response(
+                    status_code=404,
+                    message="User not connected to Twitter"
+                )
+            
+            # Check if credentials are expired
+            is_expired = await self.auth_handler.check_credentials_expiration(user_id)
+            if is_expired:
+                # Try to refresh the token
+                refresh_success = await self.auth_handler.refresh_token(user_id)
+                if not refresh_success:
+                    await self.auth_handler.delete_user_credentials(user_id)
+                    return self.create_error_response(
+                        status_code=401,
+                        message="Credentials expired and couldn't be refreshed"
+                    )
+                # Get refreshed credentials
+                credentials = await self.auth_handler.get_user_credentials(user_id)
+            
+            if isinstance(credentials, str):
+                credentials = json.loads(credentials)
+            
+            my_api = Api(
+                bearer_token=credentials.get("access_token"),  # Just pass the access token directly
+                client_id=settings.TWITTER_CLIENT_ID,
+                client_secret=settings.TWITTER_CLIENT_SECRET,
+                oauth_flow=True  # Keep OAuth flow enabled for user context
+            )
+            
+            # Delete the tweet
+            response = my_api.delete_tweet(tweet_id)
+            
+            if not response:
+                return self.create_error_response(
+                    status_code=500,
+                    message="Failed to delete tweet"
+                )
+                
+            logger.info(f"Twitter API Response: {response}")
+            
+            return self.create_success_response(
+                data={"tweet_id": tweet_id},
+                message="Tweet deleted successfully"
+            )
+            
+        except Exception as e:
+            error_info = handle_twitter_error(e)
+            logger.error(f"Twitter API Error: {error_info}")
+            return self.create_error_response(
+                status_code=error_info.get("code", 500),
+                message=error_info.get("message", str(e))
+            )
     
     async def disconnect(self, user_id: int) -> bool:
         try:
@@ -289,6 +356,15 @@ routes = [
         name="post",
         summary="Post to Twitter",
         description="Post a message to Twitter",
+        tags=["twitter"]
+    ),
+    APIRoute(
+        path="/delete_post",
+        endpoint=twitter_controller.delete_post,
+        methods=["POST"],
+        name="delete_post",
+        summary="Delete a post",
+        description="Delete a post from Twitter",
         tags=["twitter"]
     ),
     APIRoute(

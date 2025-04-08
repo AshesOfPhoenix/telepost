@@ -26,6 +26,22 @@ class ThreadsController(SocialController):
             redirect_uri=f"{settings.API_PUBLIC_URL}{settings.THREADS_REDIRECT_URI}"
         )
         self.auth_handler = threads_auth_handler
+        self.http_client = httpx.AsyncClient(
+            headers={
+                "Host": settings.API_PUBLIC_URL.split("://")[1],
+                "User-Agent": "TelegramBot/1.0",
+                "Accept-Encoding": "gzip, deflate",
+                "Accept-Language": "en-US",
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            },
+            timeout=httpx.Timeout(
+                connect=5.0, 
+                read=30.0,   
+                write=30.0,  
+                pool=30.0      
+            ),
+            verify=True
+        )
         logger.info("✅ ThreadsController initialized")
         
     async def get_user_account(self, request: Request):
@@ -187,6 +203,68 @@ class ThreadsController(SocialController):
         except Exception as e:
             return self.handle_exception(e, "posting thread")
         
+    async def delete_post(self, request: Request):
+        try:
+            params = dict(request.query_params)
+            user_id = params.get('user_id')
+            thread_id = params.get('id')
+            
+            if not user_id or not thread_id:
+                return self.create_error_response(
+                    status_code=400,
+                    message="User ID and Thread ID are required"
+                )
+                
+            credentials = await self.auth_handler.get_user_credentials(user_id)
+            if not credentials:
+                return self.create_error_response(
+                    status_code=404,
+                    message="User not connected to Threads"
+                )
+            
+            # Check if credentials are expired
+            is_expired = await self.auth_handler.check_credentials_expiration(user_id)
+            if is_expired:
+                # Try to refresh the token
+                refresh_success = await self.auth_handler.refresh_token(user_id)
+                if not refresh_success:
+                    await self.auth_handler.delete_user_credentials(user_id)
+                    return self.create_error_response(
+                        status_code=401,
+                        message="Credentials expired and couldn't be refreshed"
+                    )
+                # Get refreshed credentials
+                credentials = await self.auth_handler.get_user_credentials(user_id)
+            
+            if isinstance(credentials, str):
+                credentials = json.loads(credentials)
+            
+            # NOT POSSIBLE USING TWITTER PACKAGE; WILL HAVE TO BE DONE USING API
+            
+            response = await self.http_client.delete(
+                f"https://graph.threads.net/v1.0/{thread_id}?access_token={credentials['access_token']}"
+            )
+            
+            if response.status_code != 200:
+                return self.create_error_response(
+                    status_code=500,
+                    message="Failed to delete thread"
+                )
+            
+            return self.create_success_response(
+                data={"thread_id": thread_id},
+                message="Thread deleted successfully"
+            )
+            
+                
+        except Exception as e:
+            error_info = handle_threads_error(e)
+            logger.error(f"Threads API Error: {error_info}")
+            return self.create_error_response(
+                status_code=error_info.get("code", 500),
+                message=error_info.get("message", str(e))
+            )
+        
     async def token_validity(self, request: Request):
         """
         Check token validity for a user
@@ -241,6 +319,15 @@ routes = [
         name="post",
         summary="Post to Threads",
         description="Post a message to Threads",
+        tags=["threads"]
+    ),
+    APIRoute(
+        path="/delete_post",
+        endpoint=threads_controller.delete_post,
+        methods=["POST"],
+        name="delete_post",
+        summary="Delete a post",
+        description="Delete a post by its ID",
         tags=["threads"]
     ),
     APIRoute(
