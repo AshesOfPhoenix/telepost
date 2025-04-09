@@ -669,138 +669,34 @@ class TelegramBot:
         
 
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle incoming messages and route them to appropriate handlers."""
+        """Handle incoming non-text, non-command messages."""
         try:
-            # Check if user is allowed
-            user_id = update.message.from_user.id
-            if str(update.message.from_user.username) not in settings.ALLOWED_USERS:
-                await update.message.reply_text(
-                    "❌ You are not authorized to use this bot. Please contact the administrator.",
-                    parse_mode='Markdown'
-                )
-                return
+            # Auth check is handled by filter in add_handlers
+            user_id = update.message.from_user.id # Keep for logging maybe?
+            logger.info(f"Handling non-text message from user_id: {user_id}")
 
             # Get message content and type
             content, content_type = get_message_content(update.message)
+            
+            # If content_type is 'unknown' or content is None (get_message_content handles this)
             if not content:
                 await update.message.reply_text(
-                    "❌ Unsupported message type. Please send text or media.",
+                    "❌ Unsupported message type. I can currently only process text messages for chat.",
                     parse_mode='Markdown'
                 )
                 return
-                
-            # First validate connections and notify about expiring tokens
-            connection_status = await self.validate_connections(user_id, notify=True, update=update)
-            logger.info(f"Connection status: {connection_status}")
             
-            # Check if any platform is connected and valid
-            available_platforms = []
-            for platform, status in connection_status.items():
-                if status["connected"] and status["valid"]:
-                    available_platforms.append(platform)
-            
-            if not available_platforms:
-                # No valid connections, guide user
-                expired_platforms = [p for p, s in connection_status.items() if s["connected"] and not s["valid"]]
-                if expired_platforms:
-                    # Some connections exist but are expired
-                    platform_list = ", ".join([p.capitalize() for p in expired_platforms])
-                    await update.message.reply_text(
-                        f"⚠️ Your connections to {platform_list} have expired. Please use /connect to reconnect.",
-                        parse_mode='Markdown'
-                    )
-                else:
-                    # No connections at all
-                    await update.message.reply_text(
-                        "🔗 Please connect your social media accounts first using the /connect command.",
-                        parse_mode='Markdown'
-                    )
-                return
-
-            # Show processing message
-            progress_message = await update.message.reply_text(
-                "🔄 Processing your post...",
+            # Placeholder for future handling of other types if needed
+            logger.warning(f"Received unhandled message type '{content_type}' from user {user_id}")
+            await update.message.reply_text(
+                f"🤖 I received a {content_type} message, but I can only chat using text for now.",
                 parse_mode='Markdown'
             )
-            
-            # Post to all available platforms
-            results = []
-            
-            for platform in available_platforms:
-                try:
-                    if platform == "threads":
-                        response = await self.api_post("/threads/post", params={
-                            "user_id": user_id, 
-                            "message": content if content_type == "text" else "", 
-                            "image_url": content if content_type != "text" else None
-                        }, timeout=30)
-                        
-                        if response.status_code == 200 and response.json().get("status") == "success":
-                            thread_json = response.json()
-                            #logger.info(f"Thread JSON: {thread_json}")
-                            thread_data = thread_json.get("data", {}).get("thread", {})
-                            thread_url = thread_data.get("permalink")
-                            thread_timestamp = thread_data.get("timestamp").replace("T", " ").replace("+0000", "")
-                            
-                            results.append(
-                                POST_SUCCESS_MESSAGE.format(
-                                    platform="Threads",
-                                    post_url=thread_url,
-                                    timestamp=thread_timestamp
-                                )
-                            )
-                        else:
-                            error_message = response.json().get("message", "Unknown error")
-                            results.append(f"❌ *Threads*: Failed to post - {error_message}")
-                    
-                    elif platform == "twitter":
-                        response = await self.api_post("/twitter/post", params={
-                            "user_id": user_id, 
-                            "message": content if content_type == "text" else "", 
-                            "image_url": content if content_type != "text" else None
-                        }, timeout=30)
-                        
-                        if response.status_code == 200 and response.json().get("status") == "success":
-                            tweet_json = response.json()
-                            tweet_data = tweet_json.get("data", {}).get("tweet", {})
-                            tweet_url = tweet_data.get("permalink")
-                            tweet_timestamp = tweet_data.get("timestamp")
-                            
-                            results.append(
-                                POST_SUCCESS_MESSAGE.format(
-                                    platform="Twitter",
-                                    post_url=tweet_url,
-                                    timestamp=tweet_timestamp
-                                )
-                            )
-                        else:
-                            error_message = response.json().get("message", "Unknown error")
-                            results.append(f"❌ *Twitter*: Failed to post - {error_message}")
                 
-                except Exception as e:
-                    logger.error(f"Error posting to {platform}: {str(e)}")
-                    results.append(f"❌ *{platform.capitalize()}*: Error - {str(e)}")
-            
-            # Show results
-            if results:
-                await context.bot.edit_message_text(
-                    chat_id=update.effective_chat.id,
-                    message_id=progress_message.message_id,
-                    text="\n\n".join(results),
-                    parse_mode='Markdown'
-                )
-            else:
-                await context.bot.edit_message_text(
-                    chat_id=update.effective_chat.id,
-                    message_id=progress_message.message_id,
-                    text="❌ Failed to post content. Please try again.",
-                    parse_mode='Markdown'
-                )
-
         except Exception as e:
             logger.error(f"Unexpected error in handle_message: {str(e)}")
             await update.message.reply_text(
-                "❌ An unexpected error occurred. Please try again later or contact support.",
+                "❌ An unexpected error occurred processing this message type.",
                 parse_mode='Markdown'
             )
 
@@ -1653,6 +1549,58 @@ class TelegramBot:
         
         return results
 
+    async def handle_ai_text_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handles regular text messages by sending them to the AI API endpoint."""
+        user_id = str(update.message.from_user.id)
+        message_text = update.message.text
+        logger.info(f"Handling AI text message from user_id: {user_id}")
+
+        payload = {
+            "user_id": user_id,
+            "message": message_text
+        }
+        
+        await update.message.chat.send_action(action='typing') # Indicate bot is thinking
+
+        try:
+            response = await self.api_post("/ai/chat", params=payload)
+            response.raise_for_status() # Raise exception for 4xx/5xx errors
+            
+            data = response.json()
+            ai_response = data.get("response", "")
+
+            if ai_response:
+                await update.message.reply_text(ai_response, parse_mode='Markdown')
+            else:
+                logger.warning(f"Received empty AI response for user {user_id}")
+                await update.message.reply_text(
+                    "🤔 I received an empty response from the AI. Please try rephrasing your message.",
+                    parse_mode='Markdown'
+                )
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"API Error calling AI endpoint for user {user_id}: {e.response.status_code} - {e.response.text}")
+            detail = "Failed to get AI response."
+            try: # Try to get detail from API error response
+                 error_detail = e.response.json().get("detail")
+                 if error_detail: detail = f"Failed to get AI response: {error_detail}"
+            except Exception:
+                 pass # Ignore if parsing fails
+            await update.message.reply_text(f"❌ {detail}", parse_mode='Markdown')
+            
+        except httpx.RequestError as e:
+            logger.error(f"Network Error calling AI endpoint for user {user_id}: {e}")
+            await update.message.reply_text(
+                "❌ Could not connect to the AI service. Please try again later.",
+                parse_mode='Markdown'
+            )
+        except Exception as e:
+            logger.exception(f"Unexpected error in handle_ai_text_message for user {user_id}: {e}", exc_info=True)
+            await update.message.reply_text(
+                "❌ An unexpected error occurred while processing your message.",
+                parse_mode='Markdown'
+            )
+
     # Bot Handlers
     def add_handlers(self):
         # Commands with user restriction
@@ -1697,9 +1645,6 @@ class TelegramBot:
             CommandHandler("status", self.status_command, filters=allowed_users_filter)
         )
         self.application.add_handler(
-            MessageHandler(filters.ALL & allowed_users_filter, self.handle_message)
-        )
-        self.application.add_handler(
             CommandHandler("unknown", self.unknown, filters=filters.COMMAND)
         )
         self.application.add_handler(
@@ -1713,6 +1658,12 @@ class TelegramBot:
         )
         self.application.add_handler(
             CallbackQueryHandler(self.post_platform_callback, pattern="^post_platform_")
+        )
+        self.application.add_handler(
+            MessageHandler(filters.TEXT & ~filters.COMMAND & allowed_users_filter, self.handle_ai_text_message)
+        )
+        self.application.add_handler(
+            MessageHandler(filters.ALL & ~filters.COMMAND & ~filters.TEXT & allowed_users_filter, self.handle_message)
         )
 
 # Main

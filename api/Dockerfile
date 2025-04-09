@@ -21,17 +21,18 @@ RUN mkdir -p certs && \
 # Copy requirements first for better caching
 COPY ./api/requirements.txt ./requirements.txt
 RUN pip install --upgrade pip
+RUN pip install --upgrade pip setuptools wheel
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-# COPY .env .env
+COPY .env .env
 COPY ./api/ ./api
 
 # Set environment variables
 ENV PYTHONPATH=/app
 ENV MODULE_NAME=api.main
-ENV PORT=8000
+ENV PORT=8080
 ENV THREADS_SSL_CERT_FILEPATH=/app/certs/cert.pem
 ENV THREADS_SSL_KEY_FILEPATH=/app/certs/key.pem
 
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8080"]

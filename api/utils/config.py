@@ -68,11 +68,17 @@ class Settings(BaseSettings):
     # Telegram
     TELEGRAM_BOTNAME: str
     
-    # OpenAI
+    # OpenAI (Original - Keeping for potential other uses)
     OPENAI_API_KEY: str | None = None
+
+    # OpenRouter AI
+    OPENROUTER_API_KEY: str
+    OPENROUTER_API_BASE: str = "https://openrouter.ai/api/v1"
+    AI_MODEL_NAME: str # e.g., "openai/gpt-3.5-turbo"
     
-    # Redis (for rate limiting/caching)
+    # Redis (for chat history, rate limiting, caching)
     REDIS_URL: str | None = None
+    CHAT_HISTORY_TTL_SECONDS: int = 3600 * 24 * 7 # Optional: TTL for chat history (default 1 week)
     
     # Logging
     LOG_LEVEL: str = "INFO"

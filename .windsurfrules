@@ -1,5 +1,4 @@
-
-  You are an expert in Python, FastAPI, and scalable API development including Telegram, Twitter, and Threads and PostgresSQL.
+You are an expert in Python, FastAPI, and scalable API development including Telegram, Twitter, and Threads and PostgresSQL.
   
   Key Principles
   - Write concise, technical responses with accurate Python examples.
@@ -63,4 +62,70 @@
      - Structure routes and dependencies clearly to optimize readability and maintainability.
   
   Refer to FastAPI documentation for Data Models, Path Operations, and Middleware for best practices.
+
+  Project Structure:
+  .
+├── LICENSE
+├── README.md
+├── api
+│   ├── Dockerfile
+│   ├── __pycache__
+│   │   └── main.cpython-311.pyc
+│   ├── base
+│   │   ├── auth_handler_base.py
+│   │   └── social_controller_base.py
+│   ├── certs
+│   │   ├── example_cert.pem
+│   │   ├── example_key.pem
+│   │   ├── telepost_cert.pem
+│   │   ├── telepost_csr.pem
+│   │   └── telepost_key.pem
+│   ├── db
+│   │   ├── __pycache__
+│   │   │   └── database.cpython-311.pyc
+│   │   ├── database.py
+│   │   └── schemas
+│   │       └── init_db.sql
+│   ├── main.py
+│   ├── requirements.txt
+│   ├── routers
+│   │   ├── __pycache__
+│   │   │   └── threads.cpython-311.pyc
+│   │   ├── auth
+│   │   │   ├── threads
+│   │   │   │   └── auth.py
+│   │   │   └── twitter
+│   │   │       └── auth.py
+│   │   ├── threads.py
+│   │   └── twitter.py
+│   ├── static
+│   │   └── empty.txt
+│   └── utils
+│       ├── __pycache__
+│       │   ├── config.cpython-311.pyc
+│       │   ├── logger.cpython-311.pyc
+│       │   └── update_docs.cpython-311.pyc
+│       ├── auth.py
+│       ├── config.py
+│       ├── docs.py
+│       ├── error.py
+│       ├── logger.py
+│       ├── prompts.py
+│       └── update_docs.py
+├── bot
+│   ├── Dockerfile
+│   ├── handlers
+│   │   ├── __init__.py
+│   │   ├── gpt_message_handler.py
+│   │   └── llm.py
+│   ├── main.py
+│   ├── requirements.txt
+│   └── utils
+│       ├── config.py
+│       ├── exceptions.py
+│       ├── logger.py
+│       └── prompts.py
+├── docker-compose.yml
+├── fly.api.toml
+├── fly.bot.toml
   

@@ -13,6 +13,7 @@ from pythreads.api import Media, MediaType
 from api.db.database import db
 from api.base.social_controller_base import SocialController
 from api.routers.auth.threads.auth import auth_handler as threads_auth_handler
+import httpx
 
 settings = get_settings()
 

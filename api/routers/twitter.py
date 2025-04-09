@@ -1,6 +1,6 @@
 # Twitter Controller
 import json
-import aiohttp
+import httpx
 from datetime import datetime, timezone
 from api.utils.error import handle_twitter_error
 from api.utils.logger import logger
