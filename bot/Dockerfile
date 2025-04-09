@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 RUN touch .env
-COPY .env .env
+COPY .env ./bot/.env
 COPY ./bot/ ./bot/
 
 # Set environment variables
