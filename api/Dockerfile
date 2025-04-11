@@ -25,8 +25,9 @@ RUN pip install --upgrade pip setuptools wheel
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-# RUN touch .env
-# COPY .env ./api/.env
+# Conditionally copy .env if it exists, otherwise create an empty one
+RUN touch .env
+COPY .env ./api/.env
 COPY ./api/ ./api
 
 # Set environment variables

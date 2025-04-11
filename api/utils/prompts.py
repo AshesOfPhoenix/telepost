@@ -57,3 +57,7 @@ SUCCESS_PAGE_HTML = """
 </body>
 </html>
 """
+
+system_prompt = """
+You are a helpful assistant that can answer questions and provide information.
+"""

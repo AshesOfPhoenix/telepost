@@ -77,7 +77,9 @@ class Settings(BaseSettings):
     AI_MODEL_NAME: str # e.g., "openai/gpt-3.5-turbo"
     
     # Redis (for chat history, rate limiting, caching)
-    REDIS_URL: str | None = None
+    REDIS_URL: str
+    UPSTASH_REDIS_REST_TOKEN: str
+    UPSTASH_REDIS_REST_URL: str
     CHAT_HISTORY_TTL_SECONDS: int = 3600 * 24 * 7 # Optional: TTL for chat history (default 1 week)
     
     # Logging

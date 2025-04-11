@@ -100,8 +100,8 @@ class TelegramBot:
         return response
     
 
-    async def api_post(self, endpoint: str, params: dict = None, timeout: int = 30):
-        response = await self.http_client.post(self.API_PUBLIC_URL + endpoint, params=params, timeout=timeout)
+    async def api_post(self, endpoint: str, params: dict = None, body: dict = None, timeout: int = 30):
+        response = await self.http_client.post(self.API_PUBLIC_URL + endpoint, params=params, json=body, timeout=timeout)
         return response
         
 
@@ -1563,7 +1563,7 @@ class TelegramBot:
         await update.message.chat.send_action(action='typing') # Indicate bot is thinking
 
         try:
-            response = await self.api_post("/ai/chat", params=payload)
+            response = await self.api_post("/ai/chat", body=payload)
             response.raise_for_status() # Raise exception for 4xx/5xx errors
             
             data = response.json()

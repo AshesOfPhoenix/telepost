@@ -6,12 +6,14 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage # For potential direct history manipulation if needed
 from typing import Optional
-from langchain_community.chat_message_histories import RedisChatMessageHistory
+from langchain_community.chat_message_histories import RedisChatMessageHistory, UpstashRedisChatMessageHistory
+from langchain_core.messages import ChatMessage
 
 from openai import APIError  # Assuming OpenRouter uses OpenAI-compatible errors
 
 from api.utils.logger import logger
 from api.utils.config import get_settings
+from api.utils.prompts import system_prompt
 
 settings = get_settings()
 
@@ -33,7 +35,7 @@ llm = ChatGoogleGenerativeAI(
 # Defines the structure of the input to the LLM.
 # Includes a placeholder for history and the user's input.
 prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are a helpful conversational assistant. You are talking to Kristjan."), # Optional system message
+    ("system", system_prompt), # Optional system message
     MessagesPlaceholder(variable_name="history"), # Where the conversation history will be injected
     ("human", "{input}"), # The user's current input
 ])
@@ -45,33 +47,29 @@ base_runnable = prompt | llm
 # 4. Function to get Redis Chat History instance per session
 # This function is crucial for RunnableWithMessageHistory
 # It ensures each conversation uses its unique history store in Redis.
-def get_redis_message_history(
-    session_id: str,
-) -> RedisChatMessageHistory:
+def get_redis_message_history(session_id: str) -> RedisChatMessageHistory:
     """Creates and returns a RedisChatMessageHistory instance for a given session.
 
     Args:
         session_id: The unique identifier for the chat session (e.g., user_id).
-        redis_url: The connection URL for the Redis instance.
-        ttl: Time-to-live in seconds for the chat history in Redis. If None, history persists indefinitely.
+        # Removed redis_url and ttl from docstring args as they are fetched from settings
 
     Returns:
         An instance of RedisChatMessageHistory.
     """
-    return RedisChatMessageHistory(session_id=session_id, url=settings.REDIS_URL, ttl=settings.CHAT_HISTORY_TTL_SECONDS)
-
-# 5. Chain with Message History
-# Wraps the base runnable and automatically manages history loading and saving.
-# - runnable: The core logic (prompt | llm).
-# - get_session_history: The factory function defined above.
-# - input_messages_key: The key in the input dictionary for the user's message ("input").
-# - history_messages_key: The key for the history messages ("history"), matching the MessagesPlaceholder.
-chain_with_history = RunnableWithMessageHistory(
-    runnable=base_runnable,
-    get_session_history=get_redis_message_history,
-    input_messages_key="input",
-    history_messages_key="history",
-)
+    logger.debug(f"Attempting to create Redis history for session: {session_id} at URL: {settings.REDIS_URL}")
+    try:
+        history = UpstashRedisChatMessageHistory(
+            url=settings.UPSTASH_REDIS_REST_URL,
+            token=settings.UPSTASH_REDIS_REST_TOKEN,
+            session_id=session_id,
+            ttl=settings.CHAT_HISTORY_TTL_SECONDS
+        )
+        logger.debug(f"Successfully created Redis history object for session: {session_id} - Type: {type(history)}")
+        return history
+    except Exception as e:
+        logger.error(f"FAILED to create Redis history for session {session_id}: {e}", exc_info=True)
+        raise
 
 # --- Main Function ---
 
@@ -92,6 +90,22 @@ def get_ai_response_with_history(user_message: str, session_id: str) -> str:
     # Configuration for the invocation, specifying the session_id
     # This tells RunnableWithMessageHistory which history store to use (via get_redis_message_history)
     config = {"configurable": {"session_id": session_id}}
+    
+    logger.debug(f"Prompt: {prompt}")
+    
+    # 5. Chain with Message History
+    # Wraps the base runnable and automatically manages history loading and saving.
+    # - runnable: The core logic (prompt | llm).
+    # - get_session_history: The factory function defined above.
+    # - input_messages_key: The key in the input dictionary for the user's message ("input").
+    # - history_messages_key: The key for the history messages ("history"), matching the MessagesPlaceholder.
+    chain_with_history = RunnableWithMessageHistory(
+        runnable=base_runnable,
+        get_session_history=get_redis_message_history,  # Pass the factory function itself
+        input_messages_key="input",
+        history_messages_key="history",
+    )
+    # logger.debug(f"Chain with history: {chain_with_history}")
 
     # Invoke the chain. LangChain handles:
     # 1. Calling get_redis_message_history(session_id) to get the history object.
@@ -102,6 +116,7 @@ def get_ai_response_with_history(user_message: str, session_id: str) -> str:
     # 6. Getting the AIMessage response.
     # 7. Saving the new HumanMessage and AIMessage back to Redis via the history object.
     try:
+        # response = llm.invoke([HumanMessage(content=user_message)])
         response = chain_with_history.invoke({"input": user_message}, config=config)
         ai_response_content = response.content
         print(f"AI Response: {ai_response_content}")
@@ -125,12 +140,11 @@ class AIChatResponse(BaseModel):
 # --- Endpoint ---
 @router.post("/chat", response_model=AIChatResponse)
 async def chat_with_ai(
-    request: Request
+    request: AIChatRequest
 ) -> AIChatResponse:
     """Handles chat requests, maintains conversation history via Redis, and interacts with OpenRouter AI."""
-    params = dict(request.query_params)
-    user_id = params.get('user_id')
-    message = params.get('message', 'Hello')
+    user_id = request.user_id
+    message = request.message
     
     logger.info(f"Received chat request for user_id: {user_id}")
 

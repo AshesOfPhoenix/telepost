@@ -33,3 +33,4 @@ redis
 uvicorn
 fastapi
 httpx
+upstash_redis
