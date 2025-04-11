@@ -91,7 +91,7 @@ def get_ai_response_with_history(user_message: str, session_id: str) -> str:
     # This tells RunnableWithMessageHistory which history store to use (via get_redis_message_history)
     config = {"configurable": {"session_id": session_id}}
     
-    logger.debug(f"Prompt: {prompt}")
+    # logger.debug(f"Prompt: {prompt}")
     
     # 5. Chain with Message History
     # Wraps the base runnable and automatically manages history loading and saving.
