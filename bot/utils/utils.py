@@ -9,8 +9,20 @@ client = ElevenLabs(
 )
 
 def transcribe_audio(audio_file: io.BytesIO) -> str:
+    """
+    Transcribe audio to text using ElevenLabs.
+
+    Args:
+        audio_file (io.BytesIO): Audio file to transcribe.
+
+    Returns:
+        str: Transcribed text.
+    """
     result = client.speech_to_text.convert(
         model_id="scribe_v1",
-        audio_file=audio_file
+        file=audio_file,
+        num_speakers=1,
+        diarize=False,
+        tag_audio_events=True
     )
     return result.text

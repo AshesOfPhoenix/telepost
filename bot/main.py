@@ -14,7 +14,14 @@ from bot.utils.prompts import (
     NO_ACCOUNT_MESSAGE,
     TWITTER_ACCOUNT_INFO_MESSAGE,
 )
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LoginUrl, BotCommand
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    LoginUrl,
+    Audio,
+    BotCommand,
+)
 from telegram.ext import (
     ContextTypes,
     CommandHandler,
@@ -23,7 +30,7 @@ from telegram.ext import (
     ApplicationBuilder,
     CallbackQueryHandler,
     AIORateLimiter,
-    filters
+    filters,
 )
 import json
 from bot.utils.exceptions import APIError, ConnectionError, ExpiredCredentialsError
@@ -84,6 +91,22 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         logger.error(f"Error in error handler: {str(e)}")
 
 
+async def post_init(application: Application):
+    await application.bot.set_my_commands(
+        [
+            BotCommand("/help", "🤔 Show help message"),
+            BotCommand("/post", "🚀 Post to connected platforms"),
+            BotCommand("/connect", "🔗 Connect to platforms"),
+            BotCommand("/disconnect", "🔌 Disconnect from platforms"),
+            BotCommand("/account", "👤 Show account information"),
+            BotCommand("/health", "🩺 Show health check"),
+            BotCommand("/settings", "⚙️ Show settings"),
+            BotCommand("/status", "📊 Show status"),
+            BotCommand("/restart", "🔄 Restart the bot"),
+        ]
+    )
+
+
 class TelegramBot:
     def __init__(self):
         logger.info("Starting up bot...")
@@ -110,17 +133,32 @@ class TelegramBot:
         logger.info(f"Allowed users: {settings.ALLOWED_USERS}")
         logger.info("✅ Bot initialized")
 
-    async def api_get(self, endpoint: str, params: dict = None, timeout: int = 30):
+    async def api_get(
+        self, endpoint: str, params: dict = None, timeout: int = 30, **kwargs
+    ):
         response = await self.http_client.get(
-            self.API_PUBLIC_URL + endpoint, params=params, timeout=timeout
+            self.API_PUBLIC_URL + endpoint, params=params, timeout=timeout, **kwargs
         )
         return response
 
     async def api_post(
-        self, endpoint: str, params: dict = None, body: dict = None, timeout: int = 30
+        self,
+        endpoint: str,
+        params: dict = None,
+        body: dict = None,
+        data: dict = None,
+        files: dict = None,
+        timeout: int = 30,
+        **kwargs,
     ):
         response = await self.http_client.post(
-            self.API_PUBLIC_URL + endpoint, params=params, json=body, timeout=timeout
+            self.API_PUBLIC_URL + endpoint,
+            params=params,
+            json=body,
+            data=data,
+            files=files,
+            timeout=timeout,
+            **kwargs,
         )
         return response
 
@@ -1912,43 +1950,58 @@ class TelegramBot:
         # -- Voice to Text --
         # Handle voice and transcribe
         if update.message.voice:
-            await update.message.chat.send_action(action="record_voice")
             voice = update.message.voice
             voice_file = await context.bot.get_file(voice.file_id)
 
             # store file in memory, not on disk
-            buf = io.BytesIO()
-            await voice_file.download_to_memory(buf)
-            buf.name = "voice.oga"  # file extension is required
-            buf.seek(0)  # move cursor to the beginning of the buffer
+            audio_buf = io.BytesIO()
+            await voice_file.download_to_memory(audio_buf)
+            audio_buf.name = "voice.oga"  # file extension is required
+            audio_buf.seek(0)  # move cursor to the beginning of the buffer
 
-            transcribed_text = await transcribe_audio(buf)
+            transcribed_text = transcribe_audio(audio_buf)
             message_text = transcribed_text
 
         # -- Media --
         # Gather attached media
         media = update.message.photo or update.message.video
-        buf = None
+        media_buf = None
         if media:
             media_file_ids = [file.file_id for file in media]
             media = await context.bot.get_file(media_file_ids[0])
-
+            mime_type = "image/jpeg"
+            
             # store file in memory, not on disk
-            buf = io.BytesIO()
-            await media.download_to_memory(buf)
-            buf.name = "media.jpg"  # file extension is required
-            buf.seek(0)  # move cursor to the beginning of the buffer
+            media_buf = io.BytesIO()
+            await media.download_to_memory(media_buf)
+            media_buf.name = "media.jpg"  # file extension is required
+            media_buf.seek(0)  # move cursor to the beginning of the buffer
         else:
-            buf = None
+            media_buf = None
 
-        payload = {"user_id": user_id, "message": message_text, "media_buf": buf}
+        # Prepare data for multipart request
+        request_data = {"user_id": user_id, "message": message_text}
+        request_files = None
+        if media_buf:
+            # httpx expects files as {field_name: (filename, file_obj, content_type)}
+            # Use buf.name which was set earlier (e.g., 'voice.oga', 'media.jpg')
+            # Using a generic content type here, could be refined if needed.
+            request_files = {"media_file": (media_buf.name, media_buf, mime_type)}
+
+        logger.debug(f"Sending AI request. Data: {request_data}, Files: {request_files is not None}")
 
         await update.message.chat.send_action(
             action="typing"
         )  # Indicate bot is thinking
 
         try:
-            response = await self.api_post("/ai/chat", body=payload)
+            # Call the AI API endpoint using multipart/form-data
+            response = await self.api_post(
+                "/ai/chat",
+                data=request_data,
+                files=request_files
+            )
+
             response.raise_for_status()  # Raise exception for 4xx/5xx errors
 
             data = response.json()
@@ -2002,8 +2055,12 @@ class TelegramBot:
             any_ids = [x for x in settings.ALLOWED_USERS if isinstance(x, int)]
             user_ids = [x for x in any_ids if x > 0]
             group_ids = [x for x in any_ids if x < 0]
-            allowed_users_filter = filters.User(username=usernames) | filters.User(user_id=user_ids) | filters.Chat(chat_id=group_ids)
-        
+            allowed_users_filter = (
+                filters.User(username=usernames)
+                | filters.User(user_id=user_ids)
+                | filters.Chat(chat_id=group_ids)
+            )
+
         self.application.add_handler(
             CommandHandler("start", self.start_command, filters=allowed_users_filter)
         )
@@ -2088,23 +2145,6 @@ class TelegramBot:
                 self.handle_message,
             )
         )
-
-
-async def post_init(application: Application):
-    await application.bot.set_my_commands(
-        [
-            BotCommand("/start", "Start new dialog"),
-            BotCommand("/help", "Show help message"),
-            BotCommand("/post", "Post to connected platforms"),
-            BotCommand("/connect", "Connect to platforms"),
-            BotCommand("/disconnect", "Disconnect from platforms"),
-            BotCommand("/account", "Show account information"),
-            BotCommand("/health", "Show health check"),
-            BotCommand("/settings", "Show settings"),
-            BotCommand("/status", "Show status"),
-            BotCommand("/restart", "Restart the bot"),
-        ]
-    )
 
 
 # Main
