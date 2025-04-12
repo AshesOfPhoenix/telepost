@@ -48,6 +48,7 @@ services:
       - TELEGRAM_BOTNAME=${TELEGRAM_BOTNAME}
       - ALLOWED_USERS=${ALLOWED_USERS}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
     networks:
       - app-network
     depends_on:

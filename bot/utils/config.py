@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     TELEGRAM_BOTNAME: str
     ALLOWED_USERS: str = ""
     
+    # ElevenLabs
+    ELEVENLABS_API_KEY: str
+    
     @field_validator("ALLOWED_USERS", mode="after")
     @classmethod
     def parse_allowed_users(cls, v: str) -> List[str]:
