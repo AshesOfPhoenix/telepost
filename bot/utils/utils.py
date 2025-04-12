@@ -57,7 +57,7 @@ async def is_user_in_group(
     update: Update, context: CallbackContext, user_id: int
 ) -> bool:
     """
-    Checks if user_id is a member of the group
+    Checks if user_id is a member of the group 
     """
     try:
         chat_member = await context.bot.get_chat_member(update.message.chat_id, user_id)
