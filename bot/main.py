@@ -2,6 +2,7 @@ import httpx
 import telegram
 from bot.utils.config import get_settings
 from bot.utils.logger import logger
+import io
 from bot.utils.utils import transcribe_audio
 from bot.utils.prompts import (
     HELP_MESSAGE,
