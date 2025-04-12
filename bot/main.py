@@ -21,6 +21,7 @@ from telegram import (
     LoginUrl,
     Audio,
     BotCommand,
+    constants,
 )
 from telegram.ext import (
     ContextTypes,
@@ -1950,6 +1951,9 @@ class TelegramBot:
         # -- Voice to Text --
         # Handle voice and transcribe
         if update.message.voice:
+            await update.message.chat.send_action(
+                action=constants.ChatAction.RECORD_VOICE
+            )
             voice = update.message.voice
             voice_file = await context.bot.get_file(voice.file_id)
 
@@ -1970,7 +1974,7 @@ class TelegramBot:
             media_file_ids = [file.file_id for file in media]
             media = await context.bot.get_file(media_file_ids[0])
             mime_type = "image/jpeg"
-            
+
             # store file in memory, not on disk
             media_buf = io.BytesIO()
             await media.download_to_memory(media_buf)
@@ -1988,18 +1992,18 @@ class TelegramBot:
             # Using a generic content type here, could be refined if needed.
             request_files = {"media_file": (media_buf.name, media_buf, mime_type)}
 
-        logger.debug(f"Sending AI request. Data: {request_data}, Files: {request_files is not None}")
+        logger.debug(
+            f"Sending AI request. Data: {request_data}, Files: {request_files is not None}"
+        )
 
         await update.message.chat.send_action(
-            action="typing"
+            action=constants.ChatAction.TYPING
         )  # Indicate bot is thinking
 
         try:
             # Call the AI API endpoint using multipart/form-data
             response = await self.api_post(
-                "/ai/chat",
-                data=request_data,
-                files=request_files
+                "/ai/chat", data=request_data, files=request_files
             )
 
             response.raise_for_status()  # Raise exception for 4xx/5xx errors
