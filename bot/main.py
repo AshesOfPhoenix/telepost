@@ -1567,7 +1567,7 @@ class TelegramBot:
             response.raise_for_status() # Raise exception for 4xx/5xx errors
             
             data = response.json()
-            ai_response = data.get("response", "")
+            ai_response = data.get("response", "💀 No response received from AI.")
 
             if ai_response:
                 await update.message.reply_text(ai_response, parse_mode='Markdown')
