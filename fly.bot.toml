@@ -4,7 +4,7 @@
 #
 
 app = 'telepost-bot'
-primary_region = 'fra'
+primary_region = 'ams'
 
 [build]
   dockerfile = 'bot/Dockerfile'
