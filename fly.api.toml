@@ -1,4 +1,4 @@
-# fly.toml app configuration file generated for telepost on 2025-01-26T09:15:30+01:00
+# fly.api.toml app configuration file generated for telepost on 2025-01-26T09:15:30+01:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
@@ -34,4 +34,4 @@ primary_region = 'fra'
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
-  memory_mb = 256
+  memory_mb = 384

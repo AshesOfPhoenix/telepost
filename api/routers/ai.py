@@ -91,7 +91,7 @@ def get_ai_response_with_history(
         The AI's response message content as a string.
     """
     print(f"\n--- Processing for Session ID: {session_id} ---")
-    print(f"User Message: {user_message}")
+    print(f"User Message: {user_message[:100]}...")
     print(f"Image provided: {image_base64 is not None}")
 
     # Configuration for the invocation, specifying the session_id

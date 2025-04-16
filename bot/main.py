@@ -33,6 +33,7 @@ from telegram.ext import (
     AIORateLimiter,
     filters,
 )
+from telegram.helpers import escape_markdown
 import json
 from bot.utils.exceptions import APIError, ConnectionError, ExpiredCredentialsError
 
@@ -1950,11 +1951,11 @@ class TelegramBot:
 
         # -- Voice to Text --
         # Handle voice and transcribe
-        if update.message.voice:
+        if update.message.voice or update.message.audio:
             await update.message.chat.send_action(
                 action=constants.ChatAction.RECORD_VOICE
             )
-            voice = update.message.voice
+            voice = update.message.voice or update.message.audio
             voice_file = await context.bot.get_file(voice.file_id)
 
             # store file in memory, not on disk
@@ -2012,7 +2013,8 @@ class TelegramBot:
             ai_response = data.get("response", "💀 No response received from AI.")
 
             if ai_response:
-                await update.message.reply_text(ai_response, parse_mode="Markdown")
+                safe_text = escape_markdown(ai_response, version=2)
+                await update.message.reply_text(safe_text, parse_mode="Markdown")
             else:
                 logger.warning(f"Received empty AI response for user {user_id}")
                 await update.message.reply_text(
@@ -2139,13 +2141,14 @@ class TelegramBot:
                 filters.TEXT
                 | filters.PHOTO
                 | filters.VIDEO
-                | filters.VOICE & ~filters.COMMAND & allowed_users_filter,
+                | filters.VOICE
+                | filters.AUDIO & ~filters.COMMAND & allowed_users_filter,
                 self.handle_ai_text_message,
             )
         )
         self.application.add_handler(
             MessageHandler(
-                filters.ALL & ~filters.COMMAND & ~filters.TEXT & allowed_users_filter,
+                filters.ALL & ~filters.COMMAND & allowed_users_filter,
                 self.handle_message,
             )
         )
