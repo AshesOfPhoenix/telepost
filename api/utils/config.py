@@ -80,7 +80,7 @@ class Settings(BaseSettings):
     REDIS_URL: str
     UPSTASH_REDIS_REST_TOKEN: str
     UPSTASH_REDIS_REST_URL: str
-    CHAT_HISTORY_TTL_SECONDS: int | None = None # Optional: TTL for chat history (default 1 week)
+    CHAT_HISTORY_TTL_SECONDS: int | None = None # Optional: TTL for chat history
     
     # Logging
     LOG_LEVEL: str = "INFO"
