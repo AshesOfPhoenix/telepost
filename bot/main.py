@@ -832,6 +832,19 @@ class TelegramBot:
                 parse_mode="Markdown",
             )
 
+    def is_reply_to_platform_selection(
+        update: Update, context: ContextTypes.DEFAULT_TYPE
+    ):
+        # Check if this message is a reply to the platform selection message
+        if (
+            "platform_selection" in context.user_data
+            and update.message.reply_to_message
+            and update.message.reply_to_message.message_id
+            == context.user_data["platform_selection"]["message_id"]
+        ):
+            return True
+        return False
+
     async def post(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """
         Handle /post command.
@@ -2135,6 +2148,14 @@ class TelegramBot:
         )
         self.application.add_handler(
             CallbackQueryHandler(self.post_platform_callback, pattern="^post_platform_")
+        )
+        self.application.add_handler(
+            MessageHandler(
+                filters.ALL & filters.UpdateType.MESSAGE & allowed_users_filter,
+                self.post,
+                block=False,  # or True if you want to stop further handlers
+                filter=self.is_reply_to_platform_selection,
+            )
         )
         self.application.add_handler(
             MessageHandler(
